@@ -1,0 +1,28 @@
+# requirements.txt
+
+# Core de FastAPI
+fastapi
+uvicorn[standard]
+
+# Base de datos
+sqlalchemy
+psycopg2-binary
+alembic
+
+# Validación y configuración
+pydantic
+pydantic-settings
+
+# Authentication
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+
+# Para subida de archivos
+google-cloud-storage
+
+# WebSockets
+websockets
+
+# Utils
+python-dateutil 
