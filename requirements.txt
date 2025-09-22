@@ -12,6 +12,7 @@ alembic>=1.13.0
 # Validación y configuración
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
+email-validator>=2.1.0
 
 # Authentication
 python-jose[cryptography]>=3.3.0
@@ -26,13 +27,18 @@ websockets>=12.0
 
 # Utils
 python-dateutil>=2.8.2
-
-# Desarrollo y testing (opcional)
-pytest>=7.4.3
-pytest-asyncio>=0.21.1
+requests>=2.31.0
 
 # Para detección de tipos de archivo
 python-magic>=0.4.27
+python-magic-bin>=0.4.14
 
 # Logs y debugging
-python-json-logger>=2.0.7 
+python-json-logger>=2.0.7
+
+# Monitoreo y salud de la aplicación
+psutil>=5.9.0
+
+# Desarrollo y testing (opcional)
+pytest>=7.4.3
+pytest-asyncio>=0.21.1 
