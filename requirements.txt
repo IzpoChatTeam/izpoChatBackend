@@ -1,28 +1,38 @@
 # requirements.txt
 
 # Core de FastAPI
-fastapi
-uvicorn[standard]
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
 
 # Base de datos
-sqlalchemy
-psycopg2-binary
-alembic
+sqlalchemy>=2.0.23
+psycopg2-binary>=2.9.9
+alembic>=1.13.0
 
 # Validación y configuración
-pydantic
-pydantic-settings
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
 
 # Authentication
-python-jose[cryptography]
-passlib[bcrypt]
-python-multipart
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+python-multipart>=0.0.6
 
 # Para subida de archivos
-google-cloud-storage
+google-cloud-storage>=2.10.0
 
 # WebSockets
-websockets
+websockets>=12.0
 
 # Utils
-python-dateutil 
+python-dateutil>=2.8.2
+
+# Desarrollo y testing (opcional)
+pytest>=7.4.3
+pytest-asyncio>=0.21.1
+
+# Para detección de tipos de archivo
+python-magic>=0.4.27
+
+# Logs y debugging
+python-json-logger>=2.0.7 
