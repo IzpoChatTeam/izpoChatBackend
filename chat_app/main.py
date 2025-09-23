@@ -14,14 +14,13 @@ app = FastAPI(
     description="API backend para IzpoChat - Chat en tiempo real con soporte para archivos",
     version="1.0.0",
     docs_url="/docs",
-    redoc_url="/redoc",
-    redirect_slashes=False  # Evitar redirects automáticos 307
+    redoc_url="/redoc"
 )
 
 # Configurar CORS - Permisivo para desarrollo/ejercicio
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Permite cualquier origen
+    allow_origins=["http://localhost:4200","*"],  # Permite cualquier origen
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],

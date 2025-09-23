@@ -1,4 +1,4 @@
-# chat_app/core/config.py
+    # chat_app/core/config.py
 from pydantic_settings import BaseSettings
 from typing import Optional, List
 
@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     GCS_BUCKET_NAME: str
     GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None
     
-    # --- App ---
+  # --- App ---
     APP_NAME: str = "IzpoChat API"
     DEBUG: bool = False
 
