@@ -37,35 +37,13 @@ async def add_cors_headers(request: Request, call_next):
     
     return response
 
-# Configurar CORS - Específico para Angular y compatible con WebSockets
+# Configurar CORS - Usando configuración desde .env
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:4200",
-        "http://127.0.0.1:4200", 
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "*"  # Fallback para cualquier otro origen
-    ],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allow_headers=[
-        "Accept",
-        "Accept-Language", 
-        "Content-Language",
-        "Content-Type",
-        "Authorization",
-        "X-Requested-With",
-        "Origin",
-        "Cache-Control",
-        "Pragma",
-        "Sec-WebSocket-Extensions",
-        "Sec-WebSocket-Key",
-        "Sec-WebSocket-Protocol", 
-        "Sec-WebSocket-Version",
-        "Upgrade",
-        "Connection"
-    ],
+    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
+    allow_methods=settings.CORS_ALLOW_METHODS,
+    allow_headers=settings.CORS_ALLOW_HEADERS,
     expose_headers=["*"]
 )
 
@@ -126,14 +104,12 @@ async def cors_test(request: Request):
         "cors_status": "enabled",
         "websocket_support": True,
         "angular_compatible": True,
-        "headers_allowed": [
-            "Content-Type", "Authorization", "Accept", "Origin",
-            "X-Requested-With", "Cache-Control", "Pragma",
-            "Sec-WebSocket-Extensions", "Sec-WebSocket-Key",
-            "Sec-WebSocket-Protocol", "Sec-WebSocket-Version",
-            "Upgrade", "Connection"
-        ],
-        "methods_allowed": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+        "config_from_env": {
+            "allowed_origins": settings.ALLOWED_ORIGINS,
+            "allow_credentials": settings.CORS_ALLOW_CREDENTIALS,
+            "allow_methods": settings.CORS_ALLOW_METHODS,
+            "allow_headers": settings.CORS_ALLOW_HEADERS
+        },
         "credentials": True
     }
 

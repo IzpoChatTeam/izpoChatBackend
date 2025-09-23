@@ -1,6 +1,8 @@
     # chat_app/core/config.py
 from pydantic_settings import BaseSettings
-from typing import Optional, List
+from pydantic import field_validator
+from typing import Optional, List, Union
+import json
 
 class Settings(BaseSettings):
     # --- Base ---
@@ -18,10 +20,46 @@ class Settings(BaseSettings):
     DEBUG: bool = False
 
     # --- CORS ---
-    ALLOWED_ORIGINS: List[str] = ["*"]
+    ALLOWED_ORIGINS: Union[List[str], str] = "*"
     CORS_ALLOW_CREDENTIALS: bool = True
-    CORS_ALLOW_METHODS: List[str] = ["*"]
-    CORS_ALLOW_HEADERS: List[str] = ["*"]
+    CORS_ALLOW_METHODS: Union[List[str], str] = "*"
+    CORS_ALLOW_HEADERS: Union[List[str], str] = "*"
+    
+    @field_validator('ALLOWED_ORIGINS', mode='before')
+    @classmethod
+    def parse_origins(cls, v):
+        if isinstance(v, str):
+            if v.startswith('[') and v.endswith(']'):
+                try:
+                    return json.loads(v)
+                except json.JSONDecodeError:
+                    return ["*"]
+            return ["*"] if v == "*" else [v]
+        return v
+    
+    @field_validator('CORS_ALLOW_METHODS', mode='before')
+    @classmethod
+    def parse_methods(cls, v):
+        if isinstance(v, str):
+            if v.startswith('[') and v.endswith(']'):
+                try:
+                    return json.loads(v)
+                except json.JSONDecodeError:
+                    return ["*"]
+            return ["*"] if v == "*" else [v]
+        return v
+    
+    @field_validator('CORS_ALLOW_HEADERS', mode='before')
+    @classmethod
+    def parse_headers(cls, v):
+        if isinstance(v, str):
+            if v.startswith('[') and v.endswith(']'):
+                try:
+                    return json.loads(v)
+                except json.JSONDecodeError:
+                    return ["*"]
+            return ["*"] if v == "*" else [v]
+        return v
 
     # --- Database Pool ---
     DB_POOL_SIZE: int = 20
