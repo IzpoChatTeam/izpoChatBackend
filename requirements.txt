@@ -1,45 +1,27 @@
-# requirements.txt
+# Flask Core
+Flask==3.0.0
+Flask-CORS==4.0.0
+Flask-SocketIO==5.3.6
+Flask-SQLAlchemy==3.1.1
+Flask-JWT-Extended==4.6.0
 
-# Core de FastAPI
-fastapi>=0.104.1
-uvicorn[standard]>=0.24.0
+# Database
+SQLAlchemy==2.0.23
+psycopg2-binary==2.9.9
 
-# Base de datos
-sqlalchemy>=2.0.23
-psycopg2-binary>=2.9.9
-alembic>=1.13.0
+# Security
+Werkzeug==3.0.1
+bcrypt==4.1.2
 
-# Validación y configuración
-pydantic>=2.5.0
-pydantic-settings>=2.1.0
-email-validator>=2.1.0
+# HTTP Client
+httpx==0.25.2
 
-# Authentication
-python-jose[cryptography]>=3.3.0
-passlib[bcrypt]>=1.7.4
-bcrypt>=4.0.0
-python-multipart>=0.0.6
+# Environment
+python-dotenv==1.0.0
 
-# Para subida de archivos
-google-cloud-storage>=2.10.0
+# WebSocket
+python-socketio==5.10.0
+eventlet==0.33.3
 
-# WebSockets
-websockets>=12.0
-
-# Utils
-python-dateutil>=2.8.2
-requests>=2.31.0
-httpx>=0.25.0  # Para conexiones async con Supabase Storage
-
-# Para detección de tipos de archivo
-python-magic>=0.4.27
-
-# Logs y debugging
-python-json-logger>=2.0.7
-
-# Monitoreo y salud de la aplicación
-psutil>=5.9.0
-
-# Desarrollo y testing (opcional)
-pytest>=7.4.3
-pytest-asyncio>=0.21.1 
+# WSGI Server for production
+gunicorn==21.2.0 
