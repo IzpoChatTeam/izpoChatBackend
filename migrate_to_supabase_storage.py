@@ -1,4 +1,4 @@
-"""Update file_uploads table for Supabase Storage
+"""Update file_uploads table for Supabase Storage (izpochat-bucket)
 
 Revision ID: supabase_storage_migration
 Revises: 

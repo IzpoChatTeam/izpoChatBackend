@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None
     
     # --- Supabase Storage ---
-    SUPABASE_STORAGE_BUCKET: str = "v1"
+    SUPABASE_STORAGE_BUCKET: str = "izpochat-bucket"
     SUPABASE_URL: str
     SUPABASE_ANON_KEY: str
     
