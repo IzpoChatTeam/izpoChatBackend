@@ -16,34 +16,16 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
-    redirect_slashes=False  # CRÍTICO: Evitar redirects 307
+    redirect_slashes=False
 )
 
-# Middleware personalizado para manejar headers adicionales para WebSocket
-@app.middleware("http")
-async def add_cors_headers(request: Request, call_next):
-    response = await call_next(request)
-    
-    # Headers adicionales para WebSocket y CORS
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    response.headers["Access-Control-Allow-Credentials"] = "true"
-    response.headers["Access-Control-Expose-Headers"] = "*"
-    
-    # Headers específicos para WebSocket
-    if "upgrade" in request.headers.get("connection", "").lower():
-        response.headers["Access-Control-Allow-Headers"] += ", Upgrade, Connection, Sec-WebSocket-Key, Sec-WebSocket-Version, Sec-WebSocket-Protocol, Sec-WebSocket-Extensions"
-    
-    return response
-
-# Configurar CORS - Usando configuración desde .env
+# Configurar CORS - MÁXIMA PERMISIVIDAD para desarrollo
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
-    allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
-    allow_methods=settings.CORS_ALLOW_METHODS,
-    allow_headers=settings.CORS_ALLOW_HEADERS,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
     expose_headers=["*"]
 )
 
@@ -57,7 +39,7 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # Incluir routers
 app.include_router(users.router, prefix="/api")
-app.include_router(rooms.router, prefix="/api/rooms")  # Prefix específico para evitar redirects
+app.include_router(rooms.router, prefix="/api/rooms")
 app.include_router(uploads.router, prefix="/api")
 app.include_router(websockets.router, prefix="/api")
 
@@ -71,46 +53,18 @@ async def root():
         "status": "running"
     }
 
-@app.options("/{path:path}")
-async def options_handler(path: str):
-    """Manejar todas las requests OPTIONS para CORS preflight"""
-    return JSONResponse(
-        content={"message": "OK"},
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-            "Access-Control-Allow-Headers": "*",
-            "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Max-Age": "3600"
-        }
-    )
-
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy", "service": "IzpoChat API"}
 
 @app.get("/cors-test")
-async def cors_test(request: Request):
-    """Endpoint específico para probar CORS con información detallada"""
-    origin = request.headers.get("origin", "No origin header")
-    user_agent = request.headers.get("user-agent", "No user agent")
-    
+async def cors_test():
+    """Test CORS configuration"""
     return {
-        "message": "CORS funcionando correctamente",
+        "message": "CORS working correctly",
         "timestamp": "2025-09-23",
-        "origin_received": origin,
-        "user_agent": user_agent,
-        "cors_status": "enabled",
-        "websocket_support": True,
-        "angular_compatible": True,
-        "config_from_env": {
-            "allowed_origins": settings.ALLOWED_ORIGINS,
-            "allow_credentials": settings.CORS_ALLOW_CREDENTIALS,
-            "allow_methods": settings.CORS_ALLOW_METHODS,
-            "allow_headers": settings.CORS_ALLOW_HEADERS
-        },
-        "credentials": True
+        "cors_enabled": True
     }
 
 # Manejador de errores global
