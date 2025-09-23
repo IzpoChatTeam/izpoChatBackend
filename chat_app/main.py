@@ -1,8 +1,9 @@
 # chat_app/main.py
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 import os
 
 from .core.config import settings
@@ -18,13 +19,54 @@ app = FastAPI(
     redirect_slashes=False  # CRÍTICO: Evitar redirects 307
 )
 
-# Configurar CORS - Permisivo para desarrollo/ejercicio
+# Middleware personalizado para manejar headers adicionales para WebSocket
+@app.middleware("http")
+async def add_cors_headers(request: Request, call_next):
+    response = await call_next(request)
+    
+    # Headers adicionales para WebSocket y CORS
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Expose-Headers"] = "*"
+    
+    # Headers específicos para WebSocket
+    if "upgrade" in request.headers.get("connection", "").lower():
+        response.headers["Access-Control-Allow-Headers"] += ", Upgrade, Connection, Sec-WebSocket-Key, Sec-WebSocket-Version, Sec-WebSocket-Protocol, Sec-WebSocket-Extensions"
+    
+    return response
+
+# Configurar CORS - Específico para Angular y compatible con WebSockets
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Permite cualquier origen
+    allow_origins=[
+        "http://localhost:4200",
+        "http://127.0.0.1:4200", 
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "*"  # Fallback para cualquier otro origen
+    ],
     allow_credentials=True,
-    allow_methods=["*"],  # Permite todos los métodos
-    allow_headers=["*"],  # Permite todos los headers
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=[
+        "Accept",
+        "Accept-Language", 
+        "Content-Language",
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "Origin",
+        "Cache-Control",
+        "Pragma",
+        "Sec-WebSocket-Extensions",
+        "Sec-WebSocket-Key",
+        "Sec-WebSocket-Protocol", 
+        "Sec-WebSocket-Version",
+        "Upgrade",
+        "Connection"
+    ],
+    expose_headers=["*"]
 )
 
 # Crear directorio static si no existe
@@ -51,20 +93,48 @@ async def root():
         "status": "running"
     }
 
+@app.options("/{path:path}")
+async def options_handler(path: str):
+    """Manejar todas las requests OPTIONS para CORS preflight"""
+    return JSONResponse(
+        content={"message": "OK"},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "3600"
+        }
+    )
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy", "service": "IzpoChat API"}
 
 @app.get("/cors-test")
-async def cors_test():
-    """Endpoint específico para probar CORS"""
+async def cors_test(request: Request):
+    """Endpoint específico para probar CORS con información detallada"""
+    origin = request.headers.get("origin", "No origin header")
+    user_agent = request.headers.get("user-agent", "No user agent")
+    
     return {
         "message": "CORS funcionando correctamente",
         "timestamp": "2025-09-23",
-        "origin_allowed": True,
-        "methods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-        "headers": "All headers allowed"
+        "origin_received": origin,
+        "user_agent": user_agent,
+        "cors_status": "enabled",
+        "websocket_support": True,
+        "angular_compatible": True,
+        "headers_allowed": [
+            "Content-Type", "Authorization", "Accept", "Origin",
+            "X-Requested-With", "Cache-Control", "Pragma",
+            "Sec-WebSocket-Extensions", "Sec-WebSocket-Key",
+            "Sec-WebSocket-Protocol", "Sec-WebSocket-Version",
+            "Upgrade", "Connection"
+        ],
+        "methods_allowed": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+        "credentials": True
     }
 
 # Manejador de errores global
