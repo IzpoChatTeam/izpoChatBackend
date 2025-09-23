@@ -31,8 +31,10 @@ cors = CORS(app, resources={
     }
 })
 
-# Configuración SocketIO
-socketio = SocketIO(app, cors_allowed_origins=["http://localhost:4200", "https://*.render.com"])
+# Configuración SocketIO sin eventlet
+socketio = SocketIO(app, 
+                   cors_allowed_origins=["http://localhost:4200", "https://*.render.com"],
+                   async_mode='threading')
 
 # Registrar blueprints
 app.register_blueprint(uploads_bp)
@@ -343,9 +345,8 @@ def handle_send_message(data):
         db.session.rollback()
         emit('error', {'message': f'Error al enviar mensaje: {str(e)}'})
 
-# Inicializar base de datos
-@app.before_first_request
-def create_tables():
+# Crear tablas al inicio de la aplicación
+with app.app_context():
     db.create_all()
     print("Tablas de base de datos creadas")
 
