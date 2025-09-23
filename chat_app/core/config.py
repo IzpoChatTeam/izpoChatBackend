@@ -12,8 +12,8 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
     # --- Google Cloud Storage (deprecado) ---
-    GCS_BUCKET_NAME: Optional[str] = None
-    GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None
+    GCS_BUCKET_NAME: Optional[str] = ""
+    GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = ""
     
     # --- Supabase Storage ---
     SUPABASE_STORAGE_BUCKET: str = "izpochat-bucket"
