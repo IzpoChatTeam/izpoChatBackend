@@ -14,7 +14,8 @@ app = FastAPI(
     description="API backend para IzpoChat - Chat en tiempo real con soporte para archivos",
     version="1.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    redirect_slashes=False  # CRÍTICO: Evitar redirects 307
 )
 
 # Configurar CORS - Permisivo para desarrollo/ejercicio
@@ -36,7 +37,7 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # Incluir routers
 app.include_router(users.router, prefix="/api")
-app.include_router(rooms.router, prefix="/api")
+app.include_router(rooms.router, prefix="/api/rooms")  # Prefix específico para evitar redirects
 app.include_router(uploads.router, prefix="/api")
 app.include_router(websockets.router, prefix="/api")
 

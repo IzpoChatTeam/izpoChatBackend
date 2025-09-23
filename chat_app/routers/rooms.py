@@ -12,7 +12,7 @@ from ..dependencies import (
     check_room_ownership
 )
 
-router = APIRouter(prefix="/rooms", tags=["rooms"])
+router = APIRouter(tags=["rooms"])  # Sin prefix aquí
 
 
 @router.get("/", response_model=List[schemas.Room])
