@@ -33,7 +33,19 @@ def get_room(
     db: Session = Depends(get_db)
 ):
     """Obtener información de una sala"""
-    room = check_room_access(room_id, current_user, db)
+    # Validar que room_id sea válido
+    if room_id <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ID de sala inválido"
+        )
+    
+    room = crud.get_room(db, room_id)
+    if not room:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Sala no encontrada"
+        )
     return room
 
 
@@ -74,28 +86,32 @@ def join_room(
     db: Session = Depends(get_db)
 ):
     """Unirse a una sala"""
+    # Validar que room_id sea válido
+    if room_id <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ID de sala inválido"
+        )
+    
     room = crud.get_room(db, room_id)
     if not room:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Room not found"
+            detail="Sala no encontrada"
         )
     
     # Verificar si ya está en la sala
     if crud.is_user_in_room(db, room_id, current_user.id):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User is already in this room"
-        )
+        return {"message": "Ya estás en esta sala", "room_id": room_id}
     
     success = crud.add_user_to_room(db, room_id, current_user.id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Could not join room"
+            detail="No se pudo unir a la sala"
         )
     
-    return {"message": "Successfully joined room", "room_id": room_id}
+    return {"message": "Te has unido a la sala exitosamente", "room_id": room_id}
 
 
 @router.post("/{room_id}/leave")
@@ -145,7 +161,20 @@ def get_room_messages(
     db: Session = Depends(get_db)
 ):
     """Obtener mensajes de una sala"""
-    check_room_access(room_id, current_user, db)
+    # Validar que room_id sea válido
+    if room_id <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ID de sala inválido"
+        )
+    
+    room = crud.get_room(db, room_id)
+    if not room:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Sala no encontrada"
+        )
+    
     return crud.get_room_messages(db, room_id, skip=skip, limit=limit)
 
 
@@ -157,16 +186,27 @@ def send_message(
     db: Session = Depends(get_db)
 ):
     """Enviar mensaje a una sala"""
-    check_room_access(room_id, current_user, db)
-    
-    # Verificar que el room_id del mensaje coincida con el de la URL
-    if message.room_id != room_id:
+    # Validar que room_id sea válido
+    if room_id <= 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Room ID mismatch"
+            detail="ID de sala inválido"
         )
     
-    return crud.create_message(db=db, message=message, sender_id=current_user.id)
+    room = crud.get_room(db, room_id)
+    if not room:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Sala no encontrada"
+        )
+    
+    # Crear el mensaje con el room_id correcto
+    message_data = schemas.MessageCreate(
+        content=message.content,
+        room_id=room_id
+    )
+    
+    return crud.create_message(db=db, message=message_data, sender_id=current_user.id)
 
 
 @router.get("/{room_id}/members", response_model=List[schemas.User])

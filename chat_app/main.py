@@ -14,7 +14,8 @@ app = FastAPI(
     description="API backend para IzpoChat - Chat en tiempo real con soporte para archivos",
     version="1.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    redirect_slashes=False  # Evitar redirects automáticos 307
 )
 
 # Configurar CORS - Permisivo para desarrollo/ejercicio

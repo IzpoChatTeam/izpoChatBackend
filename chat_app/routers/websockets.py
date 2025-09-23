@@ -102,11 +102,19 @@ async def websocket_endpoint(
 ):
     """WebSocket endpoint para chat en tiempo real"""
     try:
+        # Validar que room_id sea válido
+        if room_id <= 0:
+            await websocket.close(code=1008, reason="ID de sala inválido")
+            return
+        
         # Verificar token y obtener usuario
         user = await get_user_from_token(token, db)
         
-        # Verificar acceso a la sala
-        room = check_room_access(room_id, user, db)
+        # Verificar que la sala existe
+        room = crud.get_room(db, room_id)
+        if not room:
+            await websocket.close(code=1008, reason="Sala no encontrada")
+            return
         
         # Conectar al usuario
         await manager.connect(websocket, room_id, user.id)
