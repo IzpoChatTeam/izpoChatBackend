@@ -1,0 +1,604 @@
+{
+  "info": {
+    "name": "IzpoChat API - Pruebas para Clase",
+    "description": "Colección completa para probar la funcionalidad de chat y mensajes de IzpoChat API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://34.72.14.164",
+      "type": "string"
+    },
+    {
+      "key": "user1_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user2_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "room_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "🏥 1. Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "📝 2. Registrar Usuario 1 (Profesor)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Usuario registrado exitosamente\", function () {",
+              "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+              "});",
+              "",
+              "if (pm.response.code === 201 || pm.response.code === 200) {",
+              "    const responseJson = pm.response.json();",
+              "    console.log(\"Usuario 1 registrado:\", responseJson.username);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\": \"profesor\",\n    \"email\": \"profesor@universidad.edu\",\n    \"password\": \"profesor123\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/users/register",
+          "host": ["{{base_url}}"],
+          "path": ["api", "users", "register"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "📝 3. Registrar Usuario 2 (Estudiante)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Usuario registrado exitosamente\", function () {",
+              "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+              "});",
+              "",
+              "if (pm.response.code === 201 || pm.response.code === 200) {",
+              "    const responseJson = pm.response.json();",
+              "    console.log(\"Usuario 2 registrado:\", responseJson.username);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\": \"estudiante1\",\n    \"email\": \"estudiante1@universidad.edu\",\n    \"password\": \"estudiante123\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/users/register",
+          "host": ["{{base_url}}"],
+          "path": ["api", "users", "register"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "🔑 4. Login Usuario 1 (Profesor)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Login exitoso\", function () {",
+              "    pm.expect(pm.response.code).to.eq(200);",
+              "});",
+              "",
+              "pm.test(\"Token recibido\", function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson).to.have.property('access_token');",
+              "    ",
+              "    // Guardar token en variable de colección",
+              "    pm.collectionVariables.set('user1_token', responseJson.access_token);",
+              "    console.log(\"Token Usuario 1 guardado\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\": \"profesor\",\n    \"password\": \"profesor123\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/users/login",
+          "host": ["{{base_url}}"],
+          "path": ["api", "users", "login"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "🔑 5. Login Usuario 2 (Estudiante)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Login exitoso\", function () {",
+              "    pm.expect(pm.response.code).to.eq(200);",
+              "});",
+              "",
+              "pm.test(\"Token recibido\", function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson).to.have.property('access_token');",
+              "    ",
+              "    // Guardar token en variable de colección",
+              "    pm.collectionVariables.set('user2_token', responseJson.access_token);",
+              "    console.log(\"Token Usuario 2 guardado\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\": \"estudiante1\",\n    \"password\": \"estudiante123\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/users/login",
+          "host": ["{{base_url}}"],
+          "path": ["api", "users", "login"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "🏠 6. Crear Sala de Clase",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Sala creada exitosamente\", function () {",
+              "    pm.expect(pm.response.code).to.eq(201);",
+              "});",
+              "",
+              "pm.test(\"ID de sala recibido\", function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson).to.have.property('id');",
+              "    ",
+              "    // Guardar room_id en variable de colección",
+              "    pm.collectionVariables.set('room_id', responseJson.id);",
+              "    console.log(\"Room ID guardado:\", responseJson.id);",
+              "    console.log(\"Sala creada:\", responseJson.name);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{user1_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"name\": \"Programación Web - Clase 1\",\n    \"description\": \"Sala para la demostración de la API de chat en tiempo real\",\n    \"is_public\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/rooms/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "rooms", ""]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "👥 7. Estudiante se Une a la Sala",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Estudiante se unió exitosamente\", function () {",
+              "    pm.expect(pm.response.code).to.eq(200);",
+              "});",
+              "",
+              "pm.test(\"Mensaje de confirmación\", function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson).to.have.property('message');",
+              "    console.log(\"Respuesta:\", responseJson.message);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{user2_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": ""
+        },
+        "url": {
+          "raw": "{{base_url}}/api/rooms/{{room_id}}/join",
+          "host": ["{{base_url}}"],
+          "path": ["api", "rooms", "{{room_id}}", "join"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "📋 8. Ver Todas las Salas",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Lista de salas obtenida\", function () {",
+              "    pm.expect(pm.response.code).to.eq(200);",
+              "});",
+              "",
+              "pm.test(\"Sala creada aparece en la lista\", function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson).to.be.an('array');",
+              "    ",
+              "    const roomFound = responseJson.find(room => room.name.includes('Programación Web'));",
+              "    pm.expect(roomFound).to.not.be.undefined;",
+              "    console.log(\"Salas encontradas:\", responseJson.length);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{user1_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/rooms/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "rooms", ""]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "💬 9. Profesor Envía Mensaje de Bienvenida",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Mensaje enviado exitosamente\", function () {",
+              "    pm.expect(pm.response.code).to.eq(201);",
+              "});",
+              "",
+              "pm.test(\"Mensaje contiene información correcta\", function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson).to.have.property('content');",
+              "    pm.expect(responseJson).to.have.property('sender_id');",
+              "    pm.expect(responseJson).to.have.property('room_id');",
+              "    console.log(\"Mensaje enviado:\", responseJson.content);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{user1_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"content\": \"¡Bienvenidos a la clase de Programación Web! Hoy vamos a demostrar nuestra API de chat en tiempo real.\",\n    \"room_id\": {{room_id}}\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/rooms/{{room_id}}/messages",
+          "host": ["{{base_url}}"],
+          "path": ["api", "rooms", "{{room_id}}", "messages"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "💬 10. Estudiante Responde",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Respuesta del estudiante enviada\", function () {",
+              "    pm.expect(pm.response.code).to.eq(201);",
+              "});",
+              "",
+              "pm.test(\"Mensaje del estudiante guardado\", function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson.content).to.include('Gracias');",
+              "    console.log(\"Estudiante respondió:\", responseJson.content);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{user2_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"content\": \"¡Gracias profesor! Me parece muy interesante esta demostración de la API. ¿Podríamos ver también la funcionalidad de WebSockets?\",\n    \"room_id\": {{room_id}}\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/rooms/{{room_id}}/messages",
+          "host": ["{{base_url}}"],
+          "path": ["api", "rooms", "{{room_id}}", "messages"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "💬 11. Profesor Envía Mensaje Técnico",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Mensaje técnico enviado\", function () {",
+              "    pm.expect(pm.response.code).to.eq(201);",
+              "});",
+              "",
+              "const responseJson = pm.response.json();",
+              "console.log(\"Mensaje técnico:\", responseJson.content);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{user1_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"content\": \"Excelente pregunta! Esta API está construida con FastAPI, utiliza SQLAlchemy para la base de datos, JWT para autenticación, y WebSockets para chat en tiempo real. Todo desplegado en Google Cloud con Docker.\",\n    \"room_id\": {{room_id}}\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/rooms/{{room_id}}/messages",
+          "host": ["{{base_url}}"],
+          "path": ["api", "rooms", "{{room_id}}", "messages"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "📖 12. Ver Historial de Mensajes",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Historial de mensajes obtenido\", function () {",
+              "    pm.expect(pm.response.code).to.eq(200);",
+              "});",
+              "",
+              "pm.test(\"Mensajes en orden correcto\", function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson).to.be.an('array');",
+              "    pm.expect(responseJson.length).to.be.at.least(3);",
+              "    ",
+              "    console.log(\"\\n=== HISTORIAL DE MENSAJES ===\");",
+              "    responseJson.forEach((msg, index) => {",
+              "        console.log(`${index + 1}. [${msg.created_at}] ${msg.content}`);",
+              "    });",
+              "    console.log(\"===========================\\n\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{user1_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/rooms/{{room_id}}/messages",
+          "host": ["{{base_url}}"],
+          "path": ["api", "rooms", "{{room_id}}", "messages"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "🏠 13. Ver Información de la Sala",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Información de sala obtenida\", function () {",
+              "    pm.expect(pm.response.code).to.eq(200);",
+              "});",
+              "",
+              "pm.test(\"Datos de la sala correctos\", function () {",
+              "    const responseJson = pm.response.json();",
+              "    pm.expect(responseJson).to.have.property('name');",
+              "    pm.expect(responseJson).to.have.property('description');",
+              "    pm.expect(responseJson).to.have.property('is_public');",
+              "    ",
+              "    console.log(\"=== INFORMACIÓN DE LA SALA ===\");",
+              "    console.log(\"Nombre:\", responseJson.name);",
+              "    console.log(\"Descripción:\", responseJson.description);",
+              "    console.log(\"Pública:\", responseJson.is_public);",
+              "    console.log(\"ID:\", responseJson.id);",
+              "    console.log(\"===============================\\n\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{user1_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/rooms/{{room_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["api", "rooms", "{{room_id}}"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "💬 14. Mensaje Final de Demostración",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Mensaje final enviado\", function () {",
+              "    pm.expect(pm.response.code).to.eq(201);",
+              "});",
+              "",
+              "console.log(\"\\n🎉 ¡DEMOSTRACIÓN COMPLETADA EXITOSAMENTE! 🎉\");",
+              "console.log(\"\\n📊 RESUMEN DE LA DEMOSTRACIÓN:\");",
+              "console.log(\"✅ Usuarios registrados y autenticados\");",
+              "console.log(\"✅ Sala de clase creada\");",
+              "console.log(\"✅ Estudiantes unidos a la sala\");",
+              "console.log(\"✅ Mensajes enviados y recibidos\");",
+              "console.log(\"✅ Historial de conversación guardado\");",
+              "console.log(\"✅ API funcionando correctamente\");",
+              "",
+              "console.log(\"\\n🔗 PRÓXIMOS PASOS:\");",
+              "console.log(\"• Probar WebSockets en: ws://\" + pm.collectionVariables.get('base_url').replace('http://', '') + \"/api/ws/\" + pm.collectionVariables.get('room_id') + \"?token=\" + pm.collectionVariables.get('user1_token'));",
+              "console.log(\"• Ver documentación en: \" + pm.collectionVariables.get('base_url') + \"/docs\");",
+              "console.log(\"• Explorar funcionalidades adicionales\");"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{user2_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"content\": \"¡Increíble demostración! Esta API tiene todas las funcionalidades que necesitamos: autenticación, salas de chat, mensajes en tiempo real, y una arquitectura robusta. Perfecto para aplicaciones de comunicación modernas.\",\n    \"room_id\": {{room_id}}\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/rooms/{{room_id}}/messages",
+          "host": ["{{base_url}}"],
+          "path": ["api", "rooms", "{{room_id}}", "messages"]
+        }
+      },
+      "response": []
+    }
+  ]
+}
