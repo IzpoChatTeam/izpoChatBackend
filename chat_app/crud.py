@@ -222,15 +222,17 @@ def get_file_upload(db: Session, file_id: int) -> Optional[models.FileUpload]:
     return db.query(models.FileUpload).filter(models.FileUpload.id == file_id).first()
 
 
-def create_file_upload(db: Session, file_upload: schemas.FileUploadCreate) -> models.FileUpload:
+def create_file_upload(db: Session, file_upload: schemas.FileUploadCreate, user_id: int) -> models.FileUpload:
     """Crear registro de archivo subido"""
     db_file = models.FileUpload(
-        original_filename=file_upload.original_filename,
-        stored_filename=file_upload.stored_filename,
+        filename=file_upload.filename,
+        file_path=file_upload.file_path,
+        file_url=file_upload.file_url,
         file_size=file_upload.file_size,
         content_type=file_upload.content_type,
-        public_url=file_upload.public_url,
-        uploader_id=file_upload.uploader_id
+        description=file_upload.description,
+        room_id=file_upload.room_id,
+        user_id=user_id
     )
     db.add(db_file)
     db.commit()
@@ -238,13 +240,30 @@ def create_file_upload(db: Session, file_upload: schemas.FileUploadCreate) -> mo
     return db_file
 
 
-def get_user_files(db: Session, user_id: int, skip: int = 0, limit: int = 50) -> List[models.FileUpload]:
+def get_user_files(db: Session, user_id: int, skip: int = 0, limit: int = 50, room_id: Optional[int] = None) -> List[models.FileUpload]:
     """Obtener archivos subidos por un usuario"""
-    return (
+    query = (
         db.query(models.FileUpload)
-        .filter(models.FileUpload.uploader_id == user_id)
+        .filter(models.FileUpload.user_id == user_id)
+    )
+    
+    if room_id is not None:
+        query = query.filter(models.FileUpload.room_id == room_id)
+    
+    return (
+        query
         .order_by(desc(models.FileUpload.uploaded_at))
         .offset(skip)
         .limit(limit)
         .all()
     )
+
+
+def delete_file_upload(db: Session, file_id: int) -> bool:
+    """Eliminar archivo subido"""
+    db_file = db.query(models.FileUpload).filter(models.FileUpload.id == file_id).first()
+    if db_file:
+        db.delete(db_file)
+        db.commit()
+        return True
+    return False

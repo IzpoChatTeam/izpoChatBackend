@@ -29,6 +29,7 @@ websockets>=12.0
 # Utils
 python-dateutil>=2.8.2
 requests>=2.31.0
+httpx>=0.25.0  # Para conexiones async con Supabase Storage
 
 # Para detección de tipos de archivo
 python-magic>=0.4.27

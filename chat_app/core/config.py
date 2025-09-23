@@ -11,9 +11,14 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
-    # --- Google Cloud Storage ---
-    GCS_BUCKET_NAME: str
+    # --- Google Cloud Storage (deprecado) ---
+    GCS_BUCKET_NAME: Optional[str] = None
     GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None
+    
+    # --- Supabase Storage ---
+    SUPABASE_STORAGE_BUCKET: str = "v1"
+    SUPABASE_URL: str
+    SUPABASE_ANON_KEY: str
     
   # --- App ---
     APP_NAME: str = "IzpoChat API"

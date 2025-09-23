@@ -51,6 +51,7 @@ class Room(Base):
     owner = relationship("User", back_populates="owned_rooms")
     members = relationship("User", secondary=user_room_association, back_populates="rooms")
     messages = relationship("Message", back_populates="room")
+    files = relationship("FileUpload", back_populates="room")
 
 
 class Message(Base):
@@ -73,14 +74,17 @@ class FileUpload(Base):
     __tablename__ = "file_uploads"
     
     id = Column(Integer, primary_key=True, index=True)
-    original_filename = Column(String, nullable=False)
-    stored_filename = Column(String, nullable=False)
+    filename = Column(String, nullable=False)  # Nombre original del archivo
+    file_path = Column(String, nullable=False)  # Path en Supabase Storage
+    file_url = Column(String, nullable=False)  # URL pública del archivo
     file_size = Column(Integer, nullable=False)
     content_type = Column(String, nullable=False)
-    public_url = Column(String, nullable=False)
-    uploader_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    description = Column(Text, nullable=True)  # Descripción opcional
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    room_id = Column(Integer, ForeignKey("rooms.id"), nullable=True)  # Archivo asociado a una sala
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relaciones
-    uploader = relationship("User", back_populates="uploaded_files")
+    user = relationship("User", back_populates="uploaded_files")
+    room = relationship("Room", back_populates="files")
     message = relationship("Message", back_populates="file", uselist=False)

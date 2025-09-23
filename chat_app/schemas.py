@@ -112,20 +112,22 @@ class Message(MessageInDB):
 
 # File Upload Schemas
 class FileUploadBase(BaseModel):
-    original_filename: str
-    stored_filename: str
+    filename: str
+    file_path: str
+    file_url: str
     file_size: int
     content_type: str
-    public_url: str
+    description: Optional[str] = None
 
 
 class FileUploadCreate(FileUploadBase):
-    uploader_id: int
+    room_id: Optional[int] = None
 
 
 class FileUploadInDB(FileUploadBase):
     id: int
-    uploader_id: int
+    user_id: int
+    room_id: Optional[int] = None
     uploaded_at: datetime
     
     class Config:
@@ -133,7 +135,7 @@ class FileUploadInDB(FileUploadBase):
 
 
 class FileUpload(FileUploadInDB):
-    uploader: User
+    user: User
 
 
 # WebSocket Schemas
