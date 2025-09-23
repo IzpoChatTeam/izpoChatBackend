@@ -21,10 +21,10 @@ app = FastAPI(
 # Configurar CORS - Permisivo para desarrollo/ejercicio
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:4200","*"],  # Permite cualquier origen
+    allow_origins=["*"],  # Permite cualquier origen
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # Permite todos los métodos
+    allow_headers=["*"],  # Permite todos los headers
 )
 
 # Crear directorio static si no existe
@@ -55,6 +55,17 @@ async def root():
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy", "service": "IzpoChat API"}
+
+@app.get("/cors-test")
+async def cors_test():
+    """Endpoint específico para probar CORS"""
+    return {
+        "message": "CORS funcionando correctamente",
+        "timestamp": "2025-09-23",
+        "origin_allowed": True,
+        "methods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+        "headers": "All headers allowed"
+    }
 
 # Manejador de errores global
 @app.exception_handler(404)
