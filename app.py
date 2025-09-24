@@ -174,6 +174,7 @@ def setup_routes(app):
                 "health": "GET /health",
                 "status": "GET /api/status",
                 "websocket_info": "GET /api/websocket-info",
+                "debug_connections": "GET /api/debug-connections",
                 "websocket": "WebSocket connection available"
             }
         }
@@ -280,6 +281,48 @@ def setup_routes(app):
                 "health_endpoint": f"{'https' if is_https else 'http'}://{host}/health",
                 "status_endpoint": f"{'https' if is_https else 'http'}://{host}/api/status",
                 "websocket_endpoint": f"{'https' if is_https else 'http'}://{host}/api/websocket-info"
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        })
+
+    @app.route('/api/debug-connections', methods=['GET'])
+    def debug_connections():
+        """Endpoint para debugging de conexiones WebSocket"""
+        
+        # Estado de usuarios conectados
+        connected_count = len(connected_users) if 'connected_users' in globals() else 0
+        
+        # Información detallada de usuarios conectados
+        users_info = []
+        if 'connected_users' in globals():
+            for sid, user_info in connected_users.items():
+                users_info.append({
+                    "session_id": sid[:10] + "...",  # Solo mostrar parte del SID por seguridad
+                    "user_id": user_info.get('user_id'),
+                    "username": user_info.get('username')
+                })
+        
+        return jsonify({
+            "websocket_status": {
+                "connected_users_count": connected_count,
+                "connected_users": users_info,
+                "socketio_enabled": socketio is not None
+            },
+            "database_status": {
+                "users_table": User.query.count() if 'User' in globals() else "unknown",
+                "rooms_table": Room.query.count() if 'Room' in globals() else "unknown", 
+                "messages_table": Message.query.count() if 'Message' in globals() else "unknown"
+            },
+            "debugging_info": {
+                "note": "This endpoint helps debug WebSocket connection issues",
+                "check_logs": "Look at server logs for 'Usuario X se unió a la sala Y' messages",
+                "verify_frontend": "Ensure frontend is calling socket.emit('join_room', {room_id: X})",
+                "message_flow": [
+                    "1. Frontend: socket.emit('send_message', {room_id: X, content: 'text'})",
+                    "2. Backend: Saves message to database", 
+                    "3. Backend: socketio.emit('new_message', data, room=str(room_id))",
+                    "4. Frontend: socket.on('new_message', callback) should receive it"
+                ]
             },
             "timestamp": datetime.utcnow().isoformat()
         })
@@ -554,7 +597,8 @@ def setup_websocket_events(socketio, app):
                 'username': user.username
             }, room=str(room_id))
             
-            logging.info(f'Usuario {user.username} se unió a la sala {room.name}')
+            logging.info(f'Usuario {user.username} se unió a la sala {room.name} (room_id={room_id})')
+            logging.info(f'Usuarios conectados en total: {len(connected_users)}')
             
         except Exception as e:
             logging.error(f'Error al unirse a la sala: {e}')
@@ -620,18 +664,27 @@ def setup_websocket_events(socketio, app):
             db.session.add(message)
             db.session.commit()
             
-            # Emitir mensaje a todos en la sala
+            # Construir datos del mensaje
             message_data = {
                 'id': message.id,
                 'content': message.content,
                 'user_id': message.user_id,
                 'username': user.username,
                 'room_id': message.room_id,
-                'created_at': message.created_at.isoformat()
+                'created_at': message.created_at.isoformat(),
+                'file_url': message.file_url  # Agregar file_url si existe
             }
             
-            emit('new_message', message_data, room=str(room_id))
-            logging.info(f'Mensaje enviado por {user.username} en sala {room.name}: {content[:50]}...')
+            # Emitir mensaje a todos en la sala (incluyendo al emisor)
+            socketio.emit('new_message', message_data, room=str(room_id))
+            logging.info(f'Mensaje emitido por {user.username} en sala {room.name} a room={room_id}: {content[:50]}...')
+            
+            # También confirmar al emisor que el mensaje se envió
+            emit('message_sent', {
+                'status': 'success',
+                'message_id': message.id,
+                'timestamp': message.created_at.isoformat()
+            })
             
         except Exception as e:
             db.session.rollback()
