@@ -1,7 +1,4 @@
 # run.py
-import eventlet
-eventlet.monkey_patch() # Parchear para compatibilidad con eventlet
-
 from app import app, db, socketio
 import os
 

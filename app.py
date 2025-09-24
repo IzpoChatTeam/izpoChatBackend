@@ -1,3 +1,6 @@
+import eventlet
+eventlet.monkey_patch() # Parchear para compatibilidad con eventlet
+
 import os
 import logging
 from flask import Flask, request, jsonify
