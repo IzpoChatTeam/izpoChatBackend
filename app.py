@@ -26,9 +26,18 @@ def create_app():
     app.config['DEBUG'] = os.environ.get('FLASK_ENV') != 'production'
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'izpochat-secret-key')
     
-    # Configuración de base de datos
+    # Configuración de base de datos - Optimizada para Supabase Transaction Pooler
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///izpochat.db')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    
+    # Configuraciones adicionales para PostgreSQL con Connection Pooling
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_size': 5,
+        'pool_recycle': 300,
+        'pool_pre_ping': True,
+        'max_overflow': 10,
+        'pool_timeout': 30
+    }
     
     # Configuración JWT
     app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'jwt-secret-string')
@@ -169,19 +178,39 @@ def setup_routes(app):
 
     @app.route('/health', methods=['GET'])
     def health_check():
-        """Health check para Render"""
+        """Health check para Render con diagnóstico mejorado"""
         try:
-            # Test database connection
-            db.session.execute('SELECT 1')
+            # Test database connection con timeout
+            import sqlalchemy
+            from sqlalchemy import text
+            
+            start_time = datetime.utcnow()
+            result = db.session.execute(text('SELECT 1'))
+            end_time = datetime.utcnow()
+            
+            query_time = (end_time - start_time).total_seconds() * 1000  # en ms
+            
             db_status = "✅ connected"
+            db_info = {
+                "status": "connected",
+                "query_time_ms": round(query_time, 2),
+                "engine": str(db.engine.url).split('@')[1] if '@' in str(db.engine.url) else "unknown"
+            }
+            
         except Exception as e:
             logging.error(f"Database health check failed: {e}")
             db_status = "⚠️ disconnected"
+            db_info = {
+                "status": "disconnected", 
+                "error": str(e),
+                "database_url": os.environ.get('DATABASE_URL', 'not_set')[:50] + "..." if os.environ.get('DATABASE_URL') else 'not_set'
+            }
         
         return jsonify({
-            "status": "healthy",
+            "status": "healthy" if db_status == "✅ connected" else "degraded",
             "timestamp": datetime.utcnow().isoformat(),
             "database": db_status,
+            "database_info": db_info,
             "service": "izpochat-backend"
         })
 
