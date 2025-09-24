@@ -23,7 +23,7 @@ class Config:
     UPLOAD_EXTENSIONS = ['.txt', '.pdf', '.png', '.jpg', '.jpeg', '.gif', '.doc', '.docx']
     
     # Configuración CORS
-    CORS_ORIGINS = ["http://localhost:4200", "https://*.render.com"]
+    CORS_ORIGINS = ["http://localhost:4200", "https://*.render.com", "*"]
     
     # Para desarrollo local
     DEBUG = os.environ.get('FLASK_ENV') == 'development'
