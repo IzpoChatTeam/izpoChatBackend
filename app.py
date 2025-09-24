@@ -31,10 +31,12 @@ cors = CORS(app, resources={
     }
 })
 
-# Configuración SocketIO sin eventlet
+# Configuración SocketIO para producción
 socketio = SocketIO(app, 
                    cors_allowed_origins=["http://localhost:4200", "https://*.render.com"],
-                   async_mode='threading')
+                   async_mode='eventlet',
+                   logger=True,
+                   engineio_logger=True)
 
 # Registrar blueprints
 app.register_blueprint(uploads_bp)
