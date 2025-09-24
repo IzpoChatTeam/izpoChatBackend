@@ -172,6 +172,8 @@ def setup_routes(app):
                 "login": "POST /api/users/login", 
                 "rooms": "GET /api/rooms",
                 "health": "GET /health",
+                "status": "GET /api/status",
+                "websocket_info": "GET /api/websocket-info",
                 "websocket": "WebSocket connection available"
             }
         }
@@ -221,6 +223,64 @@ def setup_routes(app):
             "version": "2.0.0",
             "cors_enabled": True,
             "websocket_enabled": True,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+
+    @app.route('/api/websocket-info', methods=['GET'])
+    def websocket_info():
+        """Endpoint para obtener información del WebSocket para debugging"""
+        
+        # Detectar el dominio y protocolo actual
+        host = request.host
+        is_https = request.is_secure or 'render.com' in host
+        
+        # Construir URLs del WebSocket
+        ws_protocol = 'wss' if is_https else 'ws'
+        websocket_url = f"{ws_protocol}://{host}"
+        
+        # Información del entorno
+        environment_info = {
+            "render_deployment": bool(os.environ.get('RENDER')),
+            "port": os.environ.get('PORT', 'not_set'),
+            "host": host,
+            "is_https": is_https,
+            "user_agent": request.headers.get('User-Agent', 'unknown')
+        }
+        
+        # Estado de usuarios conectados
+        connected_count = len(connected_users) if 'connected_users' in globals() else 0
+        
+        return jsonify({
+            "websocket": {
+                "url": websocket_url,
+                "protocol": ws_protocol,
+                "cors_origins": "*",
+                "async_mode": "eventlet",
+                "status": "enabled" if socketio else "disabled"
+            },
+            "connection": {
+                "host": host,
+                "is_secure": is_https,
+                "connected_users": connected_count
+            },
+            "environment": environment_info,
+            "authentication": {
+                "method": "JWT token required",
+                "token_locations": ["auth.token", "query.token"],
+                "example_connection": {
+                    "javascript": f"io('{websocket_url}', {{ auth: {{ token: 'your-jwt-token' }} }})",
+                    "query_param": f"io('{websocket_url}?token=your-jwt-token')"
+                }
+            },
+            "events": {
+                "client_events": ["connect", "join_room", "leave_room", "send_message"],
+                "server_events": ["connected", "disconnected", "joined_room", "left_room", "new_message", "error"]
+            },
+            "debugging": {
+                "health_endpoint": f"{'https' if is_https else 'http'}://{host}/health",
+                "status_endpoint": f"{'https' if is_https else 'http'}://{host}/api/status",
+                "websocket_endpoint": f"{'https' if is_https else 'http'}://{host}/api/websocket-info"
+            },
             "timestamp": datetime.utcnow().isoformat()
         })
 
