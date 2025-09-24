@@ -18,7 +18,7 @@ load_dotenv()
 # Crear aplicación Flask
 app = Flask(__name__)
 app.config.from_object(Config)
-
+ 
 # Inicializar extensiones
 db.init_app(app)
 jwt = JWTManager(app)
@@ -33,7 +33,7 @@ cors = CORS(app, resources={
 
 # Configuración SocketIO para producción
 socketio = SocketIO(app, 
-                   cors_allowed_origins=["http://localhost:4200", "https://*.render.com"],
+                   cors_allowed_origins=["*"],
                    async_mode='eventlet',
                    logger=True,
                    engineio_logger=True)
