@@ -549,6 +549,9 @@ def setup_websocket_events(socketio, app):
 # Crear la aplicación
 app, socketio = create_app()
 
+# Importar db para que esté disponible para run.py
+from models import db
+
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 5000))
     host = '0.0.0.0'
