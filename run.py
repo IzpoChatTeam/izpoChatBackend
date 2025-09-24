@@ -1,13 +1,9 @@
 # run.py
-from app import app, db, socketio
+from app import app, socketio
 import os
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-        print("Base de datos inicializada")
     
-    # El resto de tu código no necesita cambios
     if os.environ.get('RENDER') or os.environ.get('PORT'):
         import subprocess
         import sys
