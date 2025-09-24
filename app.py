@@ -24,7 +24,7 @@ db.init_app(app)
 jwt = JWTManager(app)
 cors = CORS(app, resources={
     r"/*": {
-        "origins": ["http://localhost:4200", "https://*.render.com"],
+        "origins": ["*"],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "Accept", "Origin"],
         "supports_credentials": True
