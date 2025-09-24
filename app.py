@@ -1,11 +1,12 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit, join_room, leave_room
-from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity
+from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity, decode_token
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
+import jwt as pyjwt
 
 # Importar modelos y configuración
 from models import db, User, Room, Message, FileUpload
@@ -22,18 +23,22 @@ app.config.from_object(Config)
 # Inicializar extensiones
 db.init_app(app)
 jwt = JWTManager(app)
-cors = CORS(app, resources={
-    r"/*": {
-        "origins": ["*"],
-        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization", "Accept", "Origin"],
-        "supports_credentials": True
-    }
-})
 
-# Configuración SocketIO para producción
+# Configuración CORS optimizada para permitir todos los orígenes
+cors = CORS(app, 
+           resources={
+               r"/*": {
+                   "origins": "*",
+                   "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
+                   "allow_headers": ["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
+                   "supports_credentials": False  # Cambiar a False para permitir wildcard origins
+               }
+           },
+           supports_credentials=False)
+
+# Configuración SocketIO para producción con CORS permisivo
 socketio = SocketIO(app, 
-                   cors_allowed_origins=["*"],
+                   cors_allowed_origins="*",
                    async_mode='eventlet',
                    logger=True,
                    engineio_logger=True)
@@ -44,9 +49,56 @@ app.register_blueprint(uploads_bp)
 # Diccionario para trackear usuarios conectados
 connected_users = {}
 
+# Función auxiliar para verificar token JWT en WebSocket
+def verify_jwt_token(token):
+    try:
+        if not token:
+            return None
+        
+        # Remover 'Bearer ' si está presente
+        if token.startswith('Bearer '):
+            token = token[7:]
+        
+        # Decodificar el token
+        decoded = pyjwt.decode(token, app.config['JWT_SECRET_KEY'], algorithms=['HS256'])
+        user_id = decoded.get('sub')  # 'sub' es el campo estándar para user_id en JWT
+        
+        if user_id:
+            user = User.query.get(user_id)
+            return user
+        
+    except pyjwt.ExpiredSignatureError:
+        print("Token JWT expirado")
+    except pyjwt.InvalidTokenError as e:
+        print(f"Token JWT inválido: {e}")
+    except Exception as e:
+        print(f"Error verificando token JWT: {e}")
+    
+    return None
+
+# Rutas públicas (sin autenticación requerida)
 @app.route('/health', methods=['GET'])
 def health_check():
     return jsonify({"status": "healthy", "timestamp": datetime.utcnow().isoformat()})
+
+@app.route('/api/status', methods=['GET'])
+def api_status():
+    return jsonify({
+        "status": "running",
+        "version": "1.0.0",
+        "cors_enabled": True,
+        "timestamp": datetime.utcnow().isoformat()
+    })
+
+# Manejar solicitudes OPTIONS para CORS preflight
+@app.before_request
+def handle_preflight():
+    if request.method == "OPTIONS":
+        response = jsonify()
+        response.headers.add("Access-Control-Allow-Origin", "*")
+        response.headers.add('Access-Control-Allow-Headers', "Content-Type,Authorization,Accept,Origin,X-Requested-With")
+        response.headers.add('Access-Control-Allow-Methods', "GET,PUT,POST,DELETE,OPTIONS,HEAD,PATCH")
+        return response
 
 # Rutas de autenticación
 @app.route('/api/users/register', methods=['POST'])
@@ -220,24 +272,40 @@ def get_room_messages(room_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# WebSocket events
+# WebSocket events con autenticación manual
 @socketio.on('connect')
-@jwt_required()
-def handle_connect():
+def handle_connect(auth):
     try:
-        user_id = get_jwt_identity()
-        user = User.query.get(user_id)
+        # Obtener token de los datos de autenticación
+        token = None
+        if auth and isinstance(auth, dict):
+            token = auth.get('token')
         
-        if user:
-            connected_users[request.sid] = {
-                'user_id': user_id,
-                'username': user.username
-            }
-            emit('connected', {'message': f'{user.username} se conectó'})
-            print(f'Usuario {user.username} conectado')
+        # Si no hay token en auth, intentar obtenerlo de la query string
+        if not token:
+            token = request.args.get('token')
+        
+        user = verify_jwt_token(token)
+        if not user:
+            emit('error', {'message': 'Token de autenticación requerido o inválido'})
+            return False
+        
+        connected_users[request.sid] = {
+            'user_id': user.id,
+            'username': user.username
+        }
+        
+        emit('connected', {
+            'message': f'{user.username} se conectó',
+            'user_id': user.id,
+            'username': user.username
+        })
+        print(f'Usuario {user.username} conectado')
         
     except Exception as e:
         print(f'Error en conexión: {e}')
+        emit('error', {'message': f'Error de conexión: {str(e)}'})
+        return False
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -251,11 +319,15 @@ def handle_disconnect():
         print(f'Error en desconexión: {e}')
 
 @socketio.on('join_room')
-@jwt_required()
 def handle_join_room(data):
     try:
-        user_id = get_jwt_identity()
-        user = User.query.get(user_id)
+        # Verificar que el usuario esté autenticado
+        if request.sid not in connected_users:
+            emit('error', {'message': 'Usuario no autenticado'})
+            return
+        
+        user_info = connected_users[request.sid]
+        user = User.query.get(user_info['user_id'])
         room_id = data.get('room_id')
         
         if not room_id:
@@ -281,11 +353,15 @@ def handle_join_room(data):
         emit('error', {'message': f'Error al unirse a la sala: {str(e)}'})
 
 @socketio.on('leave_room')
-@jwt_required()
 def handle_leave_room(data):
     try:
-        user_id = get_jwt_identity()
-        user = User.query.get(user_id)
+        # Verificar que el usuario esté autenticado
+        if request.sid not in connected_users:
+            emit('error', {'message': 'Usuario no autenticado'})
+            return
+            
+        user_info = connected_users[request.sid]
+        user = User.query.get(user_info['user_id'])
         room_id = data.get('room_id')
         
         if room_id:
@@ -302,11 +378,15 @@ def handle_leave_room(data):
         emit('error', {'message': f'Error al salir de la sala: {str(e)}'})
 
 @socketio.on('send_message')
-@jwt_required()
 def handle_send_message(data):
     try:
-        user_id = get_jwt_identity()
-        user = User.query.get(user_id)
+        # Verificar que el usuario esté autenticado
+        if request.sid not in connected_users:
+            emit('error', {'message': 'Usuario no autenticado'})
+            return
+            
+        user_info = connected_users[request.sid]
+        user = User.query.get(user_info['user_id'])
         room_id = data.get('room_id')
         content = data.get('content', '').strip()
         
@@ -323,7 +403,7 @@ def handle_send_message(data):
         # Crear mensaje en la base de datos
         message = Message(
             content=content,
-            user_id=user_id,
+            user_id=user.id,
             room_id=room_id
         )
         
