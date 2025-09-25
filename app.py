@@ -5,13 +5,16 @@ import os
 import logging
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-
-# CAMBIO: Importar las instancias desde extensions.py
+from flask_socketio import emit, join_room, leave_room
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from config import Config
 from extension import db, socketio, jwt
 
 from dotenv import load_dotenv
 import jwt as pyjwt
 from datetime import timedelta
+from datetime import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
@@ -19,9 +22,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(mes
 def create_app():
     app = Flask(__name__)
 
-    # ... (Toda tu sección de app.config se queda igual) ...
-    app.config['DEBUG'] = os.environ.get('FLASK_ENV') != 'production'
-    # ... etc ...
+    app.config.from_object(Config)
 
     logging.info("🚀 Iniciando IzpoChat Backend")
 

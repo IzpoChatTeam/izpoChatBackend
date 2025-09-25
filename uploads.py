@@ -5,7 +5,7 @@ from werkzeug.utils import secure_filename
 import os
 import uuid
 import httpx
-from models import db, FileUpload, Message
+from models import db, FileUpload, Message, User
 from config import Config
 
 uploads_bp = Blueprint('uploads', __name__)
