@@ -1,7 +1,5 @@
-from flask_sqlalchemy import SQLAlchemy
+from extension import db
 from datetime import datetime
-
-db = SQLAlchemy()
 
 # Tabla de asociación para miembros de salas (conversaciones privadas)
 room_members = db.Table('room_members',

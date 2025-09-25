@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from app import socketio
+from extension import socketio
 from werkzeug.utils import secure_filename
 import os
 import uuid
