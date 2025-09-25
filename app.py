@@ -492,6 +492,159 @@ def setup_routes(app):
             logging.error(f"Error creando sala: {e}")
             return jsonify({"error": str(e)}), 500
 
+    @app.route('/api/conversations', methods=['POST'])
+    @jwt_required()
+    def create_or_get_private_conversation():
+        """Crear o encontrar una conversación privada entre dos usuarios"""
+        try:
+            current_user_id = get_jwt_identity()
+            data = request.get_json()
+            
+            recipient_id = data.get('recipient_id')
+            if not recipient_id:
+                return jsonify({"error": "recipient_id es requerido"}), 400
+            
+            if recipient_id == current_user_id:
+                return jsonify({"error": "No puedes crear una conversación contigo mismo"}), 400
+            
+            # Verificar que el destinatario existe
+            recipient = User.query.get(recipient_id)
+            if not recipient:
+                return jsonify({"error": "Usuario destinatario no encontrado"}), 404
+            
+            current_user = User.query.get(current_user_id)
+            
+            # Buscar si ya existe una conversación privada entre estos dos usuarios
+            existing_room = Room.find_private_conversation(current_user_id, recipient_id)
+            
+            if existing_room:
+                # Retornar la conversación existente
+                return jsonify({
+                    "id": existing_room.id,
+                    "name": existing_room.name,
+                    "description": existing_room.description,
+                    "is_private": existing_room.is_private,
+                    "created_at": existing_room.created_at.isoformat(),
+                    "created_by": existing_room.created_by,
+                    "members": [{
+                        "id": member.id,
+                        "username": member.username,
+                        "full_name": member.full_name
+                    } for member in existing_room.members],
+                    "status": "existing_conversation"
+                }), 200
+            
+            # Crear nueva conversación privada
+            conversation_name = f"Conversación entre {current_user.username} y {recipient.username}"
+            
+            new_room = Room(
+                name=conversation_name,
+                description=f"Conversación privada entre {current_user.full_name or current_user.username} y {recipient.full_name or recipient.username}",
+                is_private=True,
+                created_by=current_user_id
+            )
+            
+            # Agregar ambos usuarios como miembros
+            new_room.members.append(current_user)
+            new_room.members.append(recipient)
+            
+            db.session.add(new_room)
+            db.session.commit()
+            
+            logging.info(f"Conversación privada creada entre {current_user.username} y {recipient.username}")
+            
+            return jsonify({
+                "id": new_room.id,
+                "name": new_room.name,
+                "description": new_room.description,
+                "is_private": new_room.is_private,
+                "created_at": new_room.created_at.isoformat(),
+                "created_by": new_room.created_by,
+                "members": [{
+                    "id": member.id,
+                    "username": member.username,
+                    "full_name": member.full_name
+                } for member in new_room.members],
+                "status": "new_conversation"
+            }), 201
+            
+        except Exception as e:
+            db.session.rollback()
+            logging.error(f"Error creando conversación: {e}")
+            return jsonify({"error": str(e)}), 500
+
+    @app.route('/api/debug/test-supabase', methods=['GET'])
+    def test_supabase_connection():
+        """Endpoint para probar la conexión con Supabase Storage"""
+        try:
+            import httpx
+            
+            # Obtener configuraciones de Supabase
+            supabase_url = app.config.get('SUPABASE_URL')
+            supabase_key = app.config.get('SUPABASE_ANON_KEY')
+            bucket_name = app.config.get('SUPABASE_STORAGE_BUCKET')
+            
+            if not all([supabase_url, supabase_key, bucket_name]):
+                return jsonify({
+                    "status": "error",
+                    "message": "Configuración de Supabase incompleta",
+                    "missing_configs": {
+                        "SUPABASE_URL": bool(supabase_url),
+                        "SUPABASE_ANON_KEY": bool(supabase_key),
+                        "SUPABASE_STORAGE_BUCKET": bool(bucket_name)
+                    }
+                }), 500
+            
+            # URL para listar objetos del bucket
+            storage_url = f"{supabase_url}/storage/v1/object/{bucket_name}"
+            
+            headers = {
+                'Authorization': f'Bearer {supabase_key}',
+                'Content-Type': 'application/json'
+            }
+            
+            # Realizar petición síncrona con httpx
+            with httpx.Client(timeout=30.0) as client:
+                response = client.get(storage_url, headers=headers)
+                
+                success = response.status_code in [200, 201]
+                
+                return jsonify({
+                    "status": "success" if success else "error",
+                    "connection": {
+                        "supabase_url": supabase_url,
+                        "bucket_name": bucket_name,
+                        "storage_endpoint": storage_url
+                    },
+                    "response": {
+                        "status_code": response.status_code,
+                        "headers": dict(response.headers),
+                        "content_length": len(response.content),
+                        "response_preview": response.text[:500] if response.text else "No content"
+                    },
+                    "test_result": {
+                        "can_connect": success,
+                        "bucket_accessible": success,
+                        "error_message": None if success else f"HTTP {response.status_code}: {response.text}"
+                    },
+                    "timestamp": datetime.utcnow().isoformat()
+                }), 200 if success else 500
+                
+        except ImportError:
+            return jsonify({
+                "status": "error",
+                "message": "httpx library not available",
+                "install_command": "pip install httpx"
+            }), 500
+            
+        except Exception as e:
+            logging.error(f"Error testing Supabase connection: {e}")
+            return jsonify({
+                "status": "error",
+                "message": f"Connection test failed: {str(e)}",
+                "timestamp": datetime.utcnow().isoformat()
+            }), 500
+
     @app.route('/api/rooms/<int:room_id>/messages', methods=['GET'])
     @jwt_required()
     def get_room_messages(room_id):
@@ -634,7 +787,6 @@ def setup_websocket_events(socketio, app):
     @socketio.on('send_message')
     def handle_send_message(data):
         try:
-            # Verificar que el usuario esté autenticado
             if request.sid not in connected_users:
                 emit('error', {'message': 'Usuario no autenticado'})
                 return
@@ -648,43 +800,35 @@ def setup_websocket_events(socketio, app):
                 emit('error', {'message': 'room_id y content son requeridos'})
                 return
             
-            # Verificar que la sala existe
             room = Room.query.get(room_id)
             if not room:
                 emit('error', {'message': 'Sala no encontrada'})
                 return
             
-            # Crear mensaje en la base de datos
             message = Message(
                 content=content,
                 user_id=user.id,
                 room_id=room_id
             )
-            
             db.session.add(message)
             db.session.commit()
             
-            # Construir datos del mensaje
+    
             message_data = {
                 'id': message.id,
                 'content': message.content,
-                'user_id': message.user_id,
-                'username': user.username,
                 'room_id': message.room_id,
                 'created_at': message.created_at.isoformat(),
-                'file_url': message.file_url  # Agregar file_url si existe
+                'file_url': message.file_url, # Será null para mensajes de texto
+                'sender': {
+                    'id': user.id,
+                    'username': user.username,
+                    'full_name': user.full_name
+                }
             }
             
-            # Emitir mensaje a todos en la sala (incluyendo al emisor)
-            socketio.emit('new_message', message_data, room=str(room_id))
-            logging.info(f'Mensaje emitido por {user.username} en sala {room.name} a room={room_id}: {content[:50]}...')
-            
-            # También confirmar al emisor que el mensaje se envió
-            emit('message_sent', {
-                'status': 'success',
-                'message_id': message.id,
-                'timestamp': message.created_at.isoformat()
-            })
+            emit('new_message', message_data, room=str(room_id))
+            logging.info(f'Mensaje de texto enviado por {user.username} en sala {room.name}')
             
         except Exception as e:
             db.session.rollback()

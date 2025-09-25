@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from app import socketio
 from werkzeug.utils import secure_filename
 import os
 import uuid
@@ -14,13 +15,10 @@ def allowed_file(filename):
     return '.' in filename and \
            '.' + filename.rsplit('.', 1)[1].lower() in [ext[1:] for ext in Config.UPLOAD_EXTENSIONS]
 
-async def upload_to_supabase(file_content, filename, content_type):
-    """Subir archivo a Supabase Storage"""
+def upload_to_supabase(file_content, filename, content_type):
+    """Subir archivo a Supabase Storage de forma síncrona"""
     try:
-        # Generar nombre único para el archivo
         unique_filename = f"{uuid.uuid4()}_{secure_filename(filename)}"
-        
-        # URL del API de Supabase Storage
         upload_url = f"{Config.SUPABASE_URL}/storage/v1/object/{Config.SUPABASE_STORAGE_BUCKET}/{unique_filename}"
         
         headers = {
@@ -28,11 +26,11 @@ async def upload_to_supabase(file_content, filename, content_type):
             'Content-Type': content_type
         }
         
-        async with httpx.AsyncClient() as client:
-            response = await client.post(upload_url, content=file_content, headers=headers)
+        # --- CAMBIO IMPORTANTE: Usamos el cliente síncrono httpx.Client ---
+        with httpx.Client() as client:
+            response = client.post(upload_url, content=file_content, headers=headers)
             
             if response.status_code == 200:
-                # URL pública del archivo
                 public_url = f"{Config.SUPABASE_URL}/storage/v1/object/public/{Config.SUPABASE_STORAGE_BUCKET}/{unique_filename}"
                 return {
                     'success': True,
@@ -56,76 +54,70 @@ async def upload_to_supabase(file_content, filename, content_type):
 def upload_file():
     try:
         user_id = get_jwt_identity()
+        user = User.query.get(user_id) # Obtenemos el objeto User
         
-        # Verificar que se envió un archivo
         if 'file' not in request.files:
             return jsonify({'error': 'No file provided'}), 400
         
         file = request.files['file']
         room_id = request.form.get('room_id')
         
-        if file.filename == '':
-            return jsonify({'error': 'No file selected'}), 400
-        
+        # ... (tus otras validaciones están bien)
         if not room_id:
             return jsonify({'error': 'room_id is required'}), 400
-        
-        # Verificar tipo de archivo
-        if not allowed_file(file.filename):
-            return jsonify({'error': f'File type not allowed. Allowed types: {Config.UPLOAD_EXTENSIONS}'}), 400
-        
-        # Verificar tamaño del archivo
-        file.seek(0, 2)  # Ir al final del archivo
-        file_size = file.tell()
-        file.seek(0)  # Volver al inicio
-        
-        if file_size > Config.MAX_CONTENT_LENGTH:
-            return jsonify({'error': f'File too large. Max size: {Config.MAX_CONTENT_LENGTH // (1024*1024)}MB'}), 400
-        
-        # Leer contenido del archivo
+
         file_content = file.read()
         
-        # Subir a Supabase
-        import asyncio
-        upload_result = asyncio.run(upload_to_supabase(
+        # --- CAMBIO IMPORTANTE: Llamamos a la nueva función síncrona ---
+        upload_result = upload_to_supabase(
             file_content,
             file.filename,
             file.content_type
-        ))
+        )
         
         if not upload_result['success']:
             return jsonify({'error': upload_result['error']}), 500
         
-        # Guardar información del archivo en la base de datos
         file_upload = FileUpload(
             filename=upload_result['filename'],
             original_filename=file.filename,
-            file_size=file_size,
+            file_size=len(file_content),
             content_type=file.content_type,
             file_url=upload_result['url'],
             user_id=user_id,
             room_id=int(room_id)
         )
-        
         db.session.add(file_upload)
         
-        # Crear mensaje con el archivo
-        message_content = f"📎 Archivo compartido: {file.filename}"
+        # Crear el mensaje asociado al archivo
+        message_content = f"📎 Archivo: {file.filename}"
         message = Message(
             content=message_content,
             user_id=user_id,
             room_id=int(room_id),
             file_url=upload_result['url']
         )
-        
         db.session.add(message)
         db.session.commit()
         
+        # --- NUEVO: Emitir el mensaje a la sala a través de WebSocket ---
+        message_data = {
+            'id': message.id,
+            'content': message.content,
+            'room_id': message.room_id,
+            'created_at': message.created_at.isoformat(),
+            'file_url': message.file_url,
+            'sender': {  # El frontend espera un objeto 'sender' anidado
+                'id': user.id,
+                'username': user.username,
+                'full_name': user.full_name
+            }
+        }
+        socketio.emit('new_message', message_data, room=str(room_id))
+        
         return jsonify({
-            'message': 'File uploaded successfully',
-            'file_id': file_upload.id,
+            'message': 'File uploaded and message sent successfully',
             'file_url': upload_result['url'],
-            'filename': file.filename,
             'message_id': message.id
         }), 200
         

@@ -3,6 +3,13 @@ from datetime import datetime
 
 db = SQLAlchemy()
 
+# Tabla de asociación para miembros de salas (conversaciones privadas)
+room_members = db.Table('room_members',
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id'), primary_key=True),
+    db.Column('room_id', db.Integer, db.ForeignKey('rooms.id'), primary_key=True),
+    db.Column('joined_at', db.DateTime, default=datetime.utcnow)
+)
+
 class User(db.Model):
     __tablename__ = 'users'
     
@@ -18,6 +25,10 @@ class User(db.Model):
     rooms = db.relationship('Room', backref='creator', lazy=True)
     uploads = db.relationship('FileUpload', backref='user', lazy=True)
     
+    # Relación many-to-many para salas donde el usuario es miembro
+    joined_rooms = db.relationship('Room', secondary=room_members, lazy='subquery',
+                                 backref=db.backref('members', lazy=True))
+    
     def __repr__(self):
         return f'<User {self.username}>'
 
@@ -27,6 +38,7 @@ class Room(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text)
+    is_private = db.Column(db.Boolean, default=True, nullable=False)  # True para conversaciones privadas
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -35,6 +47,17 @@ class Room(db.Model):
     
     def __repr__(self):
         return f'<Room {self.name}>'
+    
+    @classmethod
+    def find_private_conversation(cls, user1_id, user2_id):
+        """Encuentra una conversación privada entre dos usuarios específicos"""
+        return cls.query.filter(
+            cls.is_private == True
+        ).join(room_members).filter(
+            room_members.c.user_id.in_([user1_id, user2_id])
+        ).group_by(cls.id).having(
+            db.func.count(room_members.c.user_id) == 2
+        ).first()
 
 class Message(db.Model):
     __tablename__ = 'messages'
