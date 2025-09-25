@@ -1,120 +1,69 @@
 import eventlet
-eventlet.monkey_patch() # Parchear para compatibilidad con eventlet
+eventlet.monkey_patch()
 
 import os
 import logging
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from flask_socketio import SocketIO, emit, join_room, leave_room
-from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity, decode_token
-from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime, timedelta
+
+# CAMBIO: Importar las instancias desde extensions.py
+from extension import db, socketio, jwt
+
 from dotenv import load_dotenv
 import jwt as pyjwt
+from datetime import timedelta
 
-# Cargar variables de entorno
 load_dotenv()
-
-# Configurar logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 
 def create_app():
-    """Factory optimizada para IzpoChat Backend"""
     app = Flask(__name__)
-    
-    # Configuración básica
+
+    # ... (Toda tu sección de app.config se queda igual) ...
     app.config['DEBUG'] = os.environ.get('FLASK_ENV') != 'production'
-    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'izpochat-secret-key')
-    
-    # Configuración de base de datos - Optimizada para Supabase Transaction Pooler
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///izpochat.db')
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    
-    # Configuraciones adicionales para PostgreSQL con Connection Pooling
-    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-        'pool_size': 5,
-        'pool_recycle': 300,
-        'pool_pre_ping': True,
-        'max_overflow': 10,
-        'pool_timeout': 30
-    }
-    
-    # Configuración JWT
-    app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'jwt-secret-string')
-    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=7)
-    
-    # Configuración de Supabase Storage
-    app.config['SUPABASE_URL'] = os.environ.get('SUPABASE_URL')
-    app.config['SUPABASE_ANON_KEY'] = os.environ.get('SUPABASE_ANON_KEY')
-    app.config['SUPABASE_STORAGE_BUCKET'] = os.environ.get('SUPABASE_STORAGE_BUCKET', 'izpochat-bucket')
-    
-    # Configuración de archivos
-    app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
-    
+    # ... etc ...
+
     logging.info("🚀 Iniciando IzpoChat Backend")
-    
-    # Configurar CORS
-    CORS(app, 
-         resources={
-             r"/*": {
-                 "origins": "*",
-                 "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
-                 "allow_headers": ["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
-                 "supports_credentials": False
-             }
-         },
-         supports_credentials=False)
+
+    CORS(app, resources={r"/*": {"origins": "*"}})
     logging.info("✅ CORS configurado para todos los orígenes")
-    
-    # Inicializar extensiones
-    try:
-        from models import db, User, Room, Message, FileUpload
-        db.init_app(app)
-        logging.info("✅ SQLAlchemy inicializado")
-    except Exception as e:
-        logging.error(f"❌ Error inicializando base de datos: {e}")
-    
-    try:
-        jwt_manager = JWTManager(app)
-        logging.info("✅ JWT Manager inicializado")
-    except Exception as e:
-        logging.error(f"❌ Error inicializando JWT: {e}")
-    
-    # Configurar SocketIO
-    try:
-        socketio = SocketIO(app, 
-                           cors_allowed_origins="*",
-                           async_mode='eventlet',
-                           logger=True,
-                           engineio_logger=False)
-        logging.info("✅ SocketIO configurado con eventlet")
-    except Exception as e:
-        logging.error(f"❌ Error configurando SocketIO: {e}")
-        socketio = None
-    
-    # Registrar blueprints
-    try:
+
+    # --- CAMBIO: Inicializar extensiones con el método init_app ---
+    db.init_app(app)
+    logging.info("✅ SQLAlchemy inicializado")
+
+    jwt.init_app(app)
+    logging.info("✅ JWT Manager inicializado")
+
+    # La configuración de SocketIO se pasa aquí
+    socketio.init_app(app, 
+                      cors_allowed_origins="*",
+                      async_mode='eventlet',
+                      logger=True,
+                      engineio_logger=False)
+    logging.info("✅ SocketIO configurado con eventlet")
+
+    # --- CAMBIO: Importar y registrar blueprints DENTRO de la función ---
+    with app.app_context():
         from uploads import uploads_bp
         app.register_blueprint(uploads_bp)
         logging.info("✅ Blueprint de uploads registrado")
-    except Exception as e:
-        logging.warning(f"⚠️ Error registrando uploads blueprint: {e}")
-    
-    # Crear tablas
-    with app.app_context():
+
+        # Crear tablas
         try:
             db.create_all()
             logging.info("✅ Tablas de base de datos creadas/verificadas")
         except Exception as e:
             logging.error(f"❌ Error creando tablas: {e}")
-    
+
     # Configurar rutas y WebSocket events
-    setup_routes(app)
-    if socketio:
-        setup_websocket_events(socketio, app)
-    
+    # NOTA: Debes pasar la instancia 'jwt' si tus rutas la necesitan.
+    setup_routes(app) 
+    setup_websocket_events(socketio, app)
+
     logging.info("✅ IzpoChat Backend listo")
-    return app, socketio# Diccionario para trackear usuarios conectados
+    return app, socketio
+
 connected_users = {}
 
 # Función auxiliar para verificar token JWT en WebSocket
