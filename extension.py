@@ -1,6 +1,6 @@
 # extension.py
 from flask_sqlalchemy import SQLAlchemy
-from flask_socketio import SocketIO
+from flask_socketio import SocketIO, send
 from flask_jwt_extended import JWTManager
 
 db = SQLAlchemy()

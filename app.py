@@ -32,7 +32,7 @@ def create_app(config_class=Config):
     CORS(app, resources={r"/api/*": {"origins": "*"}})
     db.init_app(app)
     jwt.init_app(app)
-    socketio.init_app(app)
+    socketio(app)
 
     # --- Registro de Endpoints y Eventos ---
     with app.app_context():
@@ -87,41 +87,36 @@ def register_endpoints(app):
     @app.route('/api/users/me', methods=['GET'])
     @jwt_required()
     def get_me():
-        # --- CAMBIO AQUÍ: Usar get_jwt_identity() directamente ---
         user_id = get_jwt_identity()
-        user = User.query.get_or_404(user_id)
+        # CORRECCIÓN (LegacyAPIWarning): Usar db.session.get()
+        user = db.session.get(User, user_id)
+        if not user: return jsonify({"error": "Usuario no encontrado"}), 404
         return jsonify({"id": user.id, "username": user.username, "email": user.email, "full_name": user.full_name})
 
     @app.route('/api/users/search', methods=['GET'])
     @jwt_required()
     def search_users():
         query = request.args.get('query', '').strip()
-        # --- CAMBIO AQUÍ: Usar get_jwt_identity() directamente ---
         current_user_id = get_jwt_identity()
-        if not query:
-            return jsonify([]), 200
-        
+        if not query: return jsonify([]), 200
         users = User.query.filter(User.username.ilike(f'%{query}%'), User.id != current_user_id).limit(10).all()
         return jsonify([{"id": user.id, "username": user.username, "full_name": user.full_name} for user in users])
+
 
     @app.route('/api/conversations/initiate', methods=['POST'])
     @jwt_required()
     def create_or_get_conversation():
-        # --- CAMBIO AQUÍ: Usar get_jwt_identity() directamente ---
         current_user_id = get_jwt_identity()
         recipient_id = request.json.get('recipient_id')
-
-        if not recipient_id:
-            return jsonify({"error": "recipient_id es requerido"}), 400
+        if not recipient_id: return jsonify({"error": "recipient_id es requerido"}), 400
         
         conversation = Room.find_private_conversation(current_user_id, recipient_id)
-        if conversation:
-            return jsonify({"room_id": conversation.id, "status": "existing"}), 200
+        if conversation: return jsonify({"room_id": conversation.id, "status": "existing"}), 200
 
-        user1 = User.query.get(current_user_id)
-        user2 = User.query.get(recipient_id)
-        if not user2:
-            return jsonify({"error": "Usuario destinatario no encontrado"}), 404
+        # CORRECCIÓN (LegacyAPIWarning): Usar db.session.get()
+        user1 = db.session.get(User, current_user_id)
+        user2 = db.session.get(User, recipient_id)
+        if not user2: return jsonify({"error": "Usuario destinatario no encontrado"}), 404
 
         new_conversation = Room(name=f"Chat entre {user1.username} y {user2.username}")
         new_conversation.members.append(user1)
@@ -133,15 +128,15 @@ def register_endpoints(app):
     @app.route('/api/conversations', methods=['GET'])
     @jwt_required()
     def get_user_conversations():
-        # --- CAMBIO AQUÍ: Usar get_jwt_identity() directamente ---
         current_user_id = get_jwt_identity()
-        user = User.query.get_or_404(current_user_id)
+        # CORRECCIÓN (LegacyAPIWarning): Usar db.session.get()
+        user = db.session.get(User, current_user_id)
+        if not user: return jsonify({"error": "Usuario no encontrado"}), 404
         
         conversations_data = []
         for room in user.conversations:
             other_member = next((member for member in room.members if member.id != current_user_id), None)
-            if not other_member:
-                continue
+            if not other_member: continue
 
             last_message = Message.query.filter_by(room_id=room.id).order_by(desc(Message.created_at)).first()
             
@@ -160,6 +155,13 @@ def register_endpoints(app):
         messages = Message.query.filter_by(room_id=room_id).order_by(Message.created_at.asc()).all()
         return jsonify([{"id": msg.id, "content": msg.content, "user_id": msg.user_id, "username": msg.user.username, "created_at": msg.created_at.isoformat()} for msg in messages])
 
+
+    @app.route('/api/conversations/<int:room_id>/messages', methods=['GET'])
+    @jwt_required()
+    def get_messages(room_id):
+        messages = Message.query.filter_by(room_id=room_id).order_by(Message.created_at.asc()).all()
+        return jsonify([{"id": msg.id, "content": msg.content, "user_id": msg.user_id, "username": msg.user.username, "created_at": msg.created_at.isoformat()} for msg in messages])
+
 def register_socketio_events(socketio):
     """Registra todos los manejadores de eventos de WebSocket."""
 
@@ -169,7 +171,6 @@ def register_socketio_events(socketio):
         if not token:
             return False
         try:
-            # --- CAMBIO AQUÍ: Usar decode_token() directamente ---
             decoded_token = decode_token(token)
             user_id = decoded_token['sub']
             connected_users[request.sid] = user_id
