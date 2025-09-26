@@ -19,8 +19,6 @@ from extension import db, socketio, jwt
 from models import User, Room, Message
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-# --- Lógica de la Aplicación ---
 connected_users = {} # Almacena {session_id: user_id}
 
 def create_app(config_class=Config):
@@ -28,13 +26,12 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
     app.config["JWT_COOKIE_CSRF_PROTECT"] = False
-    # --- Inicialización de Extensiones ---
+    
     CORS(app, resources={r"/api/*": {"origins": "*"}})
     db.init_app(app)
     jwt.init_app(app)
     socketio.init_app(app)
 
-    # --- Registro de Endpoints y Eventos ---
     with app.app_context():
         register_endpoints(app)
         register_socketio_events(socketio)
@@ -69,7 +66,6 @@ def register_endpoints(app):
         db.session.add(new_user)
         db.session.commit()
 
-        # --- CAMBIO AQUÍ: Usar create_access_token() directamente ---
         access_token = create_access_token(identity=new_user.id, expires_delta=timedelta(days=7))
         return jsonify(access_token=access_token, user_id=new_user.id), 201
 
@@ -79,7 +75,6 @@ def register_endpoints(app):
         user = User.query.filter_by(email=data.get('email')).first()
 
         if user and check_password_hash(user.password_hash, data.get('password')):
-            # --- CAMBIO AQUÍ: Usar create_access_token() directamente ---
             access_token = create_access_token(identity=user.id, expires_delta=timedelta(days=7))
             return jsonify(access_token=access_token, user_id=user.id), 200
         return jsonify({"error": "Credenciales inválidas"}), 401
@@ -88,7 +83,6 @@ def register_endpoints(app):
     @jwt_required()
     def get_me():
         user_id = get_jwt_identity()
-        # CORRECCIÓN (LegacyAPIWarning): Usar db.session.get()
         user = db.session.get(User, user_id)
         if not user: return jsonify({"error": "Usuario no encontrado"}), 404
         return jsonify({"id": user.id, "username": user.username, "email": user.email, "full_name": user.full_name})
@@ -102,7 +96,6 @@ def register_endpoints(app):
         users = User.query.filter(User.username.ilike(f'%{query}%'), User.id != current_user_id).limit(10).all()
         return jsonify([{"id": user.id, "username": user.username, "full_name": user.full_name} for user in users])
 
-
     @app.route('/api/conversations/initiate', methods=['POST'])
     @jwt_required()
     def create_or_get_conversation():
@@ -113,7 +106,6 @@ def register_endpoints(app):
         conversation = Room.find_private_conversation(current_user_id, recipient_id)
         if conversation: return jsonify({"room_id": conversation.id, "status": "existing"}), 200
 
-        # CORRECCIÓN (LegacyAPIWarning): Usar db.session.get()
         user1 = db.session.get(User, current_user_id)
         user2 = db.session.get(User, recipient_id)
         if not user2: return jsonify({"error": "Usuario destinatario no encontrado"}), 404
@@ -129,7 +121,6 @@ def register_endpoints(app):
     @jwt_required()
     def get_user_conversations():
         current_user_id = get_jwt_identity()
-        # CORRECCIÓN (LegacyAPIWarning): Usar db.session.get()
         user = db.session.get(User, current_user_id)
         if not user: return jsonify({"error": "Usuario no encontrado"}), 404
         
@@ -155,15 +146,12 @@ def register_endpoints(app):
         messages = Message.query.filter_by(room_id=room_id).order_by(Message.created_at.asc()).all()
         return jsonify([{"id": msg.id, "content": msg.content, "user_id": msg.user_id, "username": msg.user.username, "created_at": msg.created_at.isoformat()} for msg in messages])
 
-
-    @app.route('/api/conversations/<int:room_id>/messages', methods=['GET'])
-    @jwt_required()
-    def get_messages(room_id):
-        messages = Message.query.filter_by(room_id=room_id).order_by(Message.created_at.asc()).all()
-        return jsonify([{"id": msg.id, "content": msg.content, "user_id": msg.user_id, "username": msg.user.username, "created_at": msg.created_at.isoformat()} for msg in messages])
+    # --- BLOQUE DUPLICADO ELIMINADO ---
+    # La segunda definición de get_messages que estaba aquí ha sido eliminada.
 
 def register_socketio_events(socketio):
     """Registra todos los manejadores de eventos de WebSocket."""
+    # (El resto del código de websockets permanece igual)
 
     @socketio.on('connect')
     def handle_connect(auth):
@@ -179,7 +167,6 @@ def register_socketio_events(socketio):
             logging.error(f"Error de autenticación en WebSocket: {e}")
             return False
 
-    # ... resto de la lógica de websockets sin cambios ...
     @socketio.on('disconnect')
     def handle_disconnect():
         if request.sid in connected_users:
@@ -196,19 +183,19 @@ def register_socketio_events(socketio):
     @socketio.on('send_message')
     def handle_send_message(data):
         user_id = connected_users.get(request.sid)
-        if not user_id:
-            return
+        if not user_id: return
         
         room_id = data.get('room_id')
         content = data.get('content')
-        if not all([room_id, content]):
-            return
+        if not all([room_id, content]): return
 
-        message = Message(content=content, user_id=user_id, room_id=room_id)
+        user = db.session.get(User, user_id)
+        if not user: return
+
+        message = Message(content=content, user_id=user.id, room_id=room_id)
         db.session.add(message)
         db.session.commit()
         
-        user = User.query.get(user_id)
         message_data = {
             "id": message.id, "content": content, "user_id": user_id,
             "username": user.username, "room_id": room_id, "created_at": message.created_at.isoformat()
