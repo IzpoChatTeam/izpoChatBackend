@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # build.sh - Script de construcción para Render
 
-set -o errexit  # exit on error
+set -o errexit  # Salir si un comando falla
 
-pip install --upgrade pip
+echo "--- Instalando dependencias ---"
 pip install -r requirements.txt
 
-# Añade esta línea para crear las tablas durante el build
-echo "Creando tablas de la base de datos..."
+echo "--- Creando/Verificando tablas de la base de datos ---"
+# Ejecuta el código Python para inicializar la BD dentro del contexto de la app
 python -c "from app import app, db; app.app_context().push(); db.create_all()"
-echo "Tablas creadas."
+
+echo "--- Build finalizado exitosamente ---"
