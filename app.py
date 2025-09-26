@@ -32,7 +32,7 @@ def create_app(config_class=Config):
     CORS(app, resources={r"/api/*": {"origins": "*"}})
     db.init_app(app)
     jwt.init_app(app)
-    socketio(app)
+    socketio.init_app(app)
 
     # --- Registro de Endpoints y Eventos ---
     with app.app_context():
