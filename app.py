@@ -8,7 +8,8 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import timedelta
-from sqlalchemy import or_
+from sqlalchemy import or_, desc
+from flask_jwt_extended import jwt_required, get_jwt_identity, create_access_token
 
 # --- Configuración Inicial ---
 from config import Config
@@ -93,17 +94,17 @@ def register_endpoints(app):
 
     # --- Rutas Protegidas (Requieren Autenticación JWT) ---
     @app.route('/api/users/me', methods=['GET'])
-    @jwt.jwt_required()
+    @jwt_required()
     def get_me():
-        user_id = jwt.get_jwt_identity()
+        user_id = get_jwt_identity()
         user = User.query.get_or_404(user_id)
         return jsonify({"id": user.id, "username": user.username, "email": user.email, "full_name": user.full_name})
 
     @app.route('/api/users/search', methods=['GET'])
-    @jwt.jwt_required()
+    @jwt_required()
     def search_users():
         query = request.args.get('query', '').strip()
-        current_user_id = jwt.get_jwt_identity()
+        current_user_id = get_jwt_identity()
         if not query:
             return jsonify([]), 200
         
@@ -114,21 +115,19 @@ def register_endpoints(app):
         
         return jsonify([{"id": user.id, "username": user.username, "full_name": user.full_name} for user in users])
 
-    @app.route('/api/conversations', methods=['POST'])
-    @jwt.jwt_required()
+    @app.route('/api/conversations/initiate', methods=['POST'])
+    @jwt_required()
     def create_or_get_conversation():
-        current_user_id = jwt.get_jwt_identity()
+        current_user_id = get_jwt_identity()
         recipient_id = request.json.get('recipient_id')
 
         if not recipient_id:
             return jsonify({"error": "recipient_id es requerido"}), 400
         
-        # Buscar conversación existente
         conversation = Room.find_private_conversation(current_user_id, recipient_id)
         if conversation:
             return jsonify({"room_id": conversation.id, "status": "existing"}), 200
 
-        # Crear nueva conversación si no existe
         user1 = User.query.get(current_user_id)
         user2 = User.query.get(recipient_id)
         if not user2:
@@ -142,10 +141,53 @@ def register_endpoints(app):
 
         return jsonify({"room_id": new_conversation.id, "status": "created"}), 201
     
+    # --- NUEVO ENDPOINT PARA OBTENER LA LISTA DE CHATS ---
+    @app.route('/api/conversations', methods=['GET'])
+    @jwt_required()
+    def get_user_conversations():
+        """
+        Devuelve todas las conversaciones del usuario actual, incluyendo
+        el otro participante y el último mensaje de cada una.
+        """
+        current_user_id = get_jwt_identity()
+        user = User.query.get_or_404(current_user_id)
+        
+        conversations_data = []
+        # user.conversations accede a la relación many-to-many
+        for room in user.conversations:
+            # Encontrar al otro miembro del chat
+            other_member = next((member for member in room.members if member.id != current_user_id), None)
+            if not other_member:
+                continue
+
+            # Encontrar el último mensaje de la conversación
+            last_message = Message.query.filter_by(room_id=room.id).order_by(desc(Message.created_at)).first()
+            
+            conversations_data.append({
+                "room_id": room.id,
+                "other_user": {
+                    "id": other_member.id,
+                    "username": other_member.username,
+                    "full_name": other_member.full_name
+                },
+                "last_message": {
+                    "content": last_message.content if last_message else "No hay mensajes todavía.",
+                    "created_at": last_message.created_at.isoformat() if last_message else None
+                }
+            })
+        
+        # Ordenar las conversaciones por el mensaje más reciente
+        conversations_data.sort(
+            key=lambda x: x['last_message']['created_at'] or '1970-01-01T00:00:00', 
+            reverse=True
+        )
+
+        return jsonify(conversations_data), 200
+
+
     @app.route('/api/conversations/<int:room_id>/messages', methods=['GET'])
-    @jwt.jwt_required()
+    @jwt_required()
     def get_messages(room_id):
-        # (Validar que el usuario actual es miembro de esta sala es una buena práctica de seguridad)
         messages = Message.query.filter_by(room_id=room_id).order_by(Message.created_at.asc()).all()
         return jsonify([{
             "id": msg.id,
@@ -164,9 +206,10 @@ def register_socketio_events(socketio):
         token = auth.get('token') if auth else None
         if not token:
             logging.warning("Intento de conexión a WebSocket sin token.")
-            return False # Rechazar conexión
+            return False
         
         try:
+            # Usamos el propio decodificador de Flask-JWT-Extended
             decoded_token = jwt.decode_token(token)
             user_id = decoded_token['sub']
             connected_users[request.sid] = user_id
@@ -185,6 +228,7 @@ def register_socketio_events(socketio):
     def handle_join_room(data):
         room_id = str(data.get('room_id'))
         if request.sid in connected_users:
+            # 'join_room' es una función de Flask-SocketIO
             socketio.join_room(room_id, sid=request.sid)
             logging.info(f"Usuario {connected_users[request.sid]} se unió a la sala {room_id}")
 
@@ -199,14 +243,11 @@ def register_socketio_events(socketio):
         if not all([room_id, content]):
             return
 
-        # Guardar mensaje en la BD
         message = Message(content=content, user_id=user_id, room_id=room_id)
         db.session.add(message)
         db.session.commit()
         
         user = User.query.get(user_id)
-
-        # Emitir mensaje a todos en la sala
         message_data = {
             "id": message.id,
             "content": content,
@@ -223,5 +264,4 @@ app = create_app()
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
-    # 'debug=False' es importante cuando se usa eventlet en el 'if __name__'
     socketio.run(app, host='0.0.0.0', port=port, debug=False)
