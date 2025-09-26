@@ -27,7 +27,7 @@ def create_app(config_class=Config):
     """Factory para crear la instancia de la aplicación Flask."""
     app = Flask(__name__)
     app.config.from_object(config_class)
-
+    app.config["JWT_COOKIE_CSRF_PROTECT"] = False
     # --- Inicialización de Extensiones ---
     CORS(app, resources={r"/api/*": {"origins": "*"}})
     db.init_app(app)
