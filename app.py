@@ -9,7 +9,9 @@ from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import timedelta
 from sqlalchemy import or_, desc
-from flask_jwt_extended import jwt_required, get_jwt_identity, create_access_token
+
+# --- Importaciones correctas de flask_jwt_extended ---
+from flask_jwt_extended import jwt_required, get_jwt_identity, create_access_token, decode_token
 
 # --- Configuración Inicial ---
 from config import Config
@@ -37,7 +39,6 @@ def create_app(config_class=Config):
         register_endpoints(app)
         register_socketio_events(socketio)
         
-        # Crear tablas si no existen
         try:
             db.create_all()
             logging.info("✅ Tablas de la base de datos verificadas/creadas.")
@@ -49,53 +50,44 @@ def create_app(config_class=Config):
 def register_endpoints(app):
     """Registra todas las rutas HTTP de la API."""
 
-    # --- Rutas Públicas (Sin Autenticación) ---
     @app.route('/health')
     def health_check():
         try:
             db.session.execute(db.text('SELECT 1'))
             return jsonify({"status": "healthy", "database": "connected"}), 200
         except Exception as e:
-            logging.error(f"Health check fallido: {e}")
             return jsonify({"status": "unhealthy", "database": "disconnected", "error": str(e)}), 500
 
-    # --- Rutas de Autenticación ---
     @app.route('/api/register', methods=['POST'])
     def register():
         data = request.get_json()
-        username = data.get('username')
-        email = data.get('email')
-        password = data.get('password')
-
-        if not all([username, email, password]):
-            return jsonify({"error": "Faltan campos requeridos"}), 400
-        if User.query.filter(or_(User.username == username, User.email == email)).first():
+        if User.query.filter(or_(User.username == data.get('username'), User.email == data.get('email'))).first():
             return jsonify({"error": "El usuario o email ya existe"}), 409
-
-        hashed_password = generate_password_hash(password)
-        new_user = User(username=username, email=email, password_hash=hashed_password, full_name=data.get('full_name', ''))
+        
+        hashed_password = generate_password_hash(data.get('password'))
+        new_user = User(username=data.get('username'), email=data.get('email'), password_hash=hashed_password, full_name=data.get('full_name', ''))
         db.session.add(new_user)
         db.session.commit()
 
-        access_token = jwt.create_access_token(identity=new_user.id, expires_delta=timedelta(days=7))
+        # --- CAMBIO AQUÍ: Usar create_access_token() directamente ---
+        access_token = create_access_token(identity=new_user.id, expires_delta=timedelta(days=7))
         return jsonify(access_token=access_token, user_id=new_user.id), 201
 
     @app.route('/api/login', methods=['POST'])
     def login():
         data = request.get_json()
-        email = data.get('email')
-        password = data.get('password')
-        user = User.query.filter_by(email=email).first()
+        user = User.query.filter_by(email=data.get('email')).first()
 
-        if user and check_password_hash(user.password_hash, password):
-            access_token = jwt.create_access_token(identity=user.id, expires_delta=timedelta(days=7))
+        if user and check_password_hash(user.password_hash, data.get('password')):
+            # --- CAMBIO AQUÍ: Usar create_access_token() directamente ---
+            access_token = create_access_token(identity=user.id, expires_delta=timedelta(days=7))
             return jsonify(access_token=access_token, user_id=user.id), 200
         return jsonify({"error": "Credenciales inválidas"}), 401
 
-    # --- Rutas Protegidas (Requieren Autenticación JWT) ---
     @app.route('/api/users/me', methods=['GET'])
     @jwt_required()
     def get_me():
+        # --- CAMBIO AQUÍ: Usar get_jwt_identity() directamente ---
         user_id = get_jwt_identity()
         user = User.query.get_or_404(user_id)
         return jsonify({"id": user.id, "username": user.username, "email": user.email, "full_name": user.full_name})
@@ -104,20 +96,18 @@ def register_endpoints(app):
     @jwt_required()
     def search_users():
         query = request.args.get('query', '').strip()
+        # --- CAMBIO AQUÍ: Usar get_jwt_identity() directamente ---
         current_user_id = get_jwt_identity()
         if not query:
             return jsonify([]), 200
         
-        users = User.query.filter(
-            User.username.ilike(f'%{query}%'),
-            User.id != current_user_id
-        ).limit(10).all()
-        
+        users = User.query.filter(User.username.ilike(f'%{query}%'), User.id != current_user_id).limit(10).all()
         return jsonify([{"id": user.id, "username": user.username, "full_name": user.full_name} for user in users])
 
     @app.route('/api/conversations/initiate', methods=['POST'])
     @jwt_required()
     def create_or_get_conversation():
+        # --- CAMBIO AQUÍ: Usar get_jwt_identity() directamente ---
         current_user_id = get_jwt_identity()
         recipient_id = request.json.get('recipient_id')
 
@@ -138,65 +128,37 @@ def register_endpoints(app):
         new_conversation.members.append(user2)
         db.session.add(new_conversation)
         db.session.commit()
-
         return jsonify({"room_id": new_conversation.id, "status": "created"}), 201
     
-    # --- NUEVO ENDPOINT PARA OBTENER LA LISTA DE CHATS ---
     @app.route('/api/conversations', methods=['GET'])
     @jwt_required()
     def get_user_conversations():
-        """
-        Devuelve todas las conversaciones del usuario actual, incluyendo
-        el otro participante y el último mensaje de cada una.
-        """
+        # --- CAMBIO AQUÍ: Usar get_jwt_identity() directamente ---
         current_user_id = get_jwt_identity()
         user = User.query.get_or_404(current_user_id)
         
         conversations_data = []
-        # user.conversations accede a la relación many-to-many
         for room in user.conversations:
-            # Encontrar al otro miembro del chat
             other_member = next((member for member in room.members if member.id != current_user_id), None)
             if not other_member:
                 continue
 
-            # Encontrar el último mensaje de la conversación
             last_message = Message.query.filter_by(room_id=room.id).order_by(desc(Message.created_at)).first()
             
             conversations_data.append({
                 "room_id": room.id,
-                "other_user": {
-                    "id": other_member.id,
-                    "username": other_member.username,
-                    "full_name": other_member.full_name
-                },
-                "last_message": {
-                    "content": last_message.content if last_message else "No hay mensajes todavía.",
-                    "created_at": last_message.created_at.isoformat() if last_message else None
-                }
+                "other_user": {"id": other_member.id, "username": other_member.username, "full_name": other_member.full_name},
+                "last_message": {"content": last_message.content if last_message else "No hay mensajes todavía.", "created_at": last_message.created_at.isoformat() if last_message else None}
             })
         
-        # Ordenar las conversaciones por el mensaje más reciente
-        conversations_data.sort(
-            key=lambda x: x['last_message']['created_at'] or '1970-01-01T00:00:00', 
-            reverse=True
-        )
-
+        conversations_data.sort(key=lambda x: x['last_message']['created_at'] or '1970-01-01T00:00:00', reverse=True)
         return jsonify(conversations_data), 200
-
 
     @app.route('/api/conversations/<int:room_id>/messages', methods=['GET'])
     @jwt_required()
     def get_messages(room_id):
         messages = Message.query.filter_by(room_id=room_id).order_by(Message.created_at.asc()).all()
-        return jsonify([{
-            "id": msg.id,
-            "content": msg.content,
-            "user_id": msg.user_id,
-            "username": msg.user.username,
-            "created_at": msg.created_at.isoformat()
-        } for msg in messages])
-
+        return jsonify([{"id": msg.id, "content": msg.content, "user_id": msg.user_id, "username": msg.user.username, "created_at": msg.created_at.isoformat()} for msg in messages])
 
 def register_socketio_events(socketio):
     """Registra todos los manejadores de eventos de WebSocket."""
@@ -205,12 +167,10 @@ def register_socketio_events(socketio):
     def handle_connect(auth):
         token = auth.get('token') if auth else None
         if not token:
-            logging.warning("Intento de conexión a WebSocket sin token.")
             return False
-        
         try:
-            # Usamos el propio decodificador de Flask-JWT-Extended
-            decoded_token = jwt.decode_token(token)
+            # --- CAMBIO AQUÍ: Usar decode_token() directamente ---
+            decoded_token = decode_token(token)
             user_id = decoded_token['sub']
             connected_users[request.sid] = user_id
             logging.info(f"Usuario {user_id} conectado a WebSocket con SID {request.sid}")
@@ -218,6 +178,7 @@ def register_socketio_events(socketio):
             logging.error(f"Error de autenticación en WebSocket: {e}")
             return False
 
+    # ... resto de la lógica de websockets sin cambios ...
     @socketio.on('disconnect')
     def handle_disconnect():
         if request.sid in connected_users:
@@ -228,7 +189,6 @@ def register_socketio_events(socketio):
     def handle_join_room(data):
         room_id = str(data.get('room_id'))
         if request.sid in connected_users:
-            # 'join_room' es una función de Flask-SocketIO
             socketio.join_room(room_id, sid=request.sid)
             logging.info(f"Usuario {connected_users[request.sid]} se unió a la sala {room_id}")
 
@@ -249,12 +209,8 @@ def register_socketio_events(socketio):
         
         user = User.query.get(user_id)
         message_data = {
-            "id": message.id,
-            "content": content,
-            "user_id": user_id,
-            "username": user.username,
-            "room_id": room_id,
-            "created_at": message.created_at.isoformat()
+            "id": message.id, "content": content, "user_id": user_id,
+            "username": user.username, "room_id": room_id, "created_at": message.created_at.isoformat()
         }
         socketio.emit('new_message', message_data, to=str(room_id))
         logging.info(f"Mensaje enviado por {user_id} a la sala {room_id}")
@@ -263,5 +219,5 @@ def register_socketio_events(socketio):
 app = create_app()
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT'))
+    port = int(os.environ.get('PORT', 5001))
     socketio.run(app, host='0.0.0.0', port=port, debug=False)
